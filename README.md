@@ -221,7 +221,7 @@ cihazdan veya alan adından erişilecekse o adresi `.env` içindeki
 `ALLOWED_HOSTS` listesine noktalı virgülle ekleyin:
 
 ```dotenv
-ALLOWED_HOSTS=localhost;127.0.0.1;192.168.1.191;ornek.tailnet.ts.net
+ALLOWED_HOSTS=localhost;127.0.0.1;192.168.1.100;ornek.tailnet.ts.net
 ```
 
 Konteynerleri durdurmak için:

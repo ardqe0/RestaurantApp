@@ -197,9 +197,9 @@ public class AuthController : ControllerBase
             return Unauthorized();
         }
 
-        if (string.IsNullOrWhiteSpace(request.NewPassword) || request.NewPassword.Length < 6)
+        if (!IsStrongPassword(request.NewPassword))
         {
-            return BadRequest("Yeni şifre en az 6 karakter olmalıdır.");
+            return BadRequest("Yeni şifre en az 8 karakter; büyük harf, küçük harf, rakam ve özel karakter içermelidir.");
         }
 
         var result = await _userManager.ChangePasswordAsync(user, request.CurrentPassword, request.NewPassword);
@@ -209,6 +209,16 @@ public class AuthController : ControllerBase
         }
 
         return NoContent();
+    }
+
+    private static bool IsStrongPassword(string? password)
+    {
+        return !string.IsNullOrWhiteSpace(password)
+            && password.Length >= 8
+            && password.Any(char.IsUpper)
+            && password.Any(char.IsLower)
+            && password.Any(char.IsDigit)
+            && password.Any(character => !char.IsLetterOrDigit(character));
     }
 
     private void SetAuthCookie(string token)

@@ -122,8 +122,8 @@ export function AccountSection({
   }
 
   async function savePassword() {
-    if (newPassword.length < 6) {
-      setError("Yeni şifre en az 6 karakter olmalıdır.");
+    if (!isStrongPassword(newPassword)) {
+      setError("Yeni şifre en az 8 karakter; büyük harf, küçük harf, rakam ve özel karakter içermelidir.");
       return;
     }
 
@@ -272,6 +272,14 @@ export function AccountSection({
       </View>
     </>
   );
+}
+
+function isStrongPassword(password: string) {
+  return password.length >= 8
+    && /[A-Z]/.test(password)
+    && /[a-z]/.test(password)
+    && /\d/.test(password)
+    && /[^A-Za-z0-9]/.test(password);
 }
 
 export function HistorySection({

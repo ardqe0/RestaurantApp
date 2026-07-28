@@ -7,14 +7,14 @@ Aktif siparişleri gösterir ve her kalemi `Bekliyor → Hazırlanıyor → Haz�
 Önce API'yi başlatın:
 
 ```powershell
-cd C:\Users\ardag\source\repos\RestaurantApp\RestaurantApp
+cd C:\path\to\RestaurantApp\RestaurantApp
 dotnet run
 ```
 
 Sonra KDS'yi başlatın:
 
 ```powershell
-cd C:\Users\ardag\source\repos\RestaurantApp\kitchen-kds
+cd C:\path\to\RestaurantApp\kitchen-kds
 .\start-expo.cmd
 ```
 

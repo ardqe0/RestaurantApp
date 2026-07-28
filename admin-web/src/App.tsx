@@ -829,7 +829,7 @@ export default function App() {
                     type="url"
                     value={customerQrAddress}
                     onChange={event => setCustomerQrAddress(event.target.value)}
-                    placeholder="http://192.168.1.191:5223"
+                    placeholder="http://192.168.1.100:5223"
                   />
                 </label>
                 <div className={`qr-address-note ${isLocalOnlyAddress(customerQrAddress) ? "warning" : ""}`}>
