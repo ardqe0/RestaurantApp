@@ -23,7 +23,7 @@ jobs:
         run: dotnet test RestaurantApp.Tests/RestaurantApp.Tests.csproj --configuration Release
 
       - name: Node.js'i kur
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 22
 
