@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@babel/runtime": "^7.24.0",
+    "@babel/runtime": "^8.0.0",
     "@expo/metro-runtime": "~3.2.3",
     "@microsoft/signalr": "^8.0.7",
     "expo": "~51.0.28",
