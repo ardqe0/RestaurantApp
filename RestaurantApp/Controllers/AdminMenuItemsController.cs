@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using RestaurantApp.Contracts;
 using RestaurantApp.Data;
 using RestaurantApp.Models;
+using RestaurantApp.Services;
 
 namespace RestaurantApp.Controllers;
 
@@ -13,10 +14,12 @@ namespace RestaurantApp.Controllers;
 public class AdminMenuItemsController : ControllerBase
 {
     private readonly RestaurantDbContext _dbContext;
+    private readonly AuditLogService _auditLog;
 
-    public AdminMenuItemsController(RestaurantDbContext dbContext)
+    public AdminMenuItemsController(RestaurantDbContext dbContext, AuditLogService auditLog)
     {
         _dbContext = dbContext;
+        _auditLog = auditLog;
     }
 
     [HttpGet]
@@ -62,6 +65,8 @@ public class AdminMenuItemsController : ControllerBase
 
         _dbContext.MenuItems.Add(menuItem);
         await _dbContext.SaveChangesAsync();
+        _auditLog.Add("Create", "MenuItem", menuItem.Id.ToString(), after: ToAuditValue(menuItem));
+        await _dbContext.SaveChangesAsync();
 
         var dto = ToDto(menuItem);
         return CreatedAtAction(nameof(GetMenuItems), dto);
@@ -81,6 +86,7 @@ public class AdminMenuItemsController : ControllerBase
             return BadRequest("Kategori bulunamadı.");
         }
 
+        var before = ToAuditValue(menuItem);
         menuItem.CategoryId = request.CategoryId;
         menuItem.Name = request.Name.Trim();
         menuItem.Description = request.Description.Trim();
@@ -89,6 +95,7 @@ public class AdminMenuItemsController : ControllerBase
         menuItem.IsAvailable = request.IsAvailable;
         menuItem.PreparationMinutes = request.PreparationMinutes;
 
+        _auditLog.Add("Update", "MenuItem", menuItem.Id.ToString(), before, ToAuditValue(menuItem));
         await _dbContext.SaveChangesAsync();
         return NoContent();
     }
@@ -102,6 +109,7 @@ public class AdminMenuItemsController : ControllerBase
             return NotFound();
         }
 
+        _auditLog.Add("Delete", "MenuItem", menuItem.Id.ToString(), before: ToAuditValue(menuItem));
         _dbContext.MenuItems.Remove(menuItem);
         await _dbContext.SaveChangesAsync();
         return NoContent();
@@ -119,4 +127,15 @@ public class AdminMenuItemsController : ControllerBase
             menuItem.IsAvailable,
             menuItem.PreparationMinutes);
     }
+
+    private static object ToAuditValue(MenuItem menuItem) => new
+    {
+        menuItem.CategoryId,
+        menuItem.Name,
+        menuItem.Description,
+        menuItem.Price,
+        menuItem.ImageUrl,
+        menuItem.IsAvailable,
+        menuItem.PreparationMinutes
+    };
 }

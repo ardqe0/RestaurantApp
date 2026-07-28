@@ -809,6 +809,29 @@ export default function App() {
                 </div>
               )}
             </Section>
+
+            <Section title="İşlem geçmişi" description="Yönetici ve mutfak kullanıcılarının son 100 kritik işlemi">
+              {data.auditLogs.length === 0 ? <EmptyState>Henüz kayıtlı işlem yok.</EmptyState> : (
+                <div className="audit-list">
+                  {data.auditLogs.map(log => (
+                    <details className="audit-row" key={log.id}>
+                      <summary>
+                        <span>
+                          <strong>{log.userName} · {log.action}</strong>
+                          <small>{log.entityType}{log.entityId ? ` #${log.entityId}` : ""} · {new Date(log.createdAt).toLocaleString("tr-TR")}</small>
+                        </span>
+                        <b>{log.role}</b>
+                      </summary>
+                      <div className="audit-details">
+                        {log.beforeJson ? <div><span>Önce</span><code>{log.beforeJson}</code></div> : null}
+                        {log.afterJson ? <div><span>Sonra</span><code>{log.afterJson}</code></div> : null}
+                        <small>IP: {log.ipAddress ?? "Bilinmiyor"}</small>
+                      </div>
+                    </details>
+                  ))}
+                </div>
+              )}
+            </Section>
           </>
         )}
       </main>

@@ -19,15 +19,18 @@ public class AdminOrdersController : ControllerBase
     private readonly RestaurantDbContext _dbContext;
     private readonly IHubContext<OrderHub> _hubContext;
     private readonly OrderPushNotificationService _notificationService;
+    private readonly AuditLogService _auditLog;
 
     public AdminOrdersController(
         RestaurantDbContext dbContext,
         IHubContext<OrderHub> hubContext,
-        OrderPushNotificationService notificationService)
+        OrderPushNotificationService notificationService,
+        AuditLogService auditLog)
     {
         _dbContext = dbContext;
         _hubContext = hubContext;
         _notificationService = notificationService;
+        _auditLog = auditLog;
     }
 
     [HttpGet("active")]
@@ -120,6 +123,8 @@ public class AdminOrdersController : ControllerBase
             return BadRequest($"Sipariş durumu {order.Status} durumundan {request.Status} durumuna geçirilemez.");
         }
 
+        var previousStatus = order.Status;
+        var previousCancellationReason = order.CancellationReason;
         var changedItems = new List<OrderItem>();
         if (request.Status == OrderStatus.Preparing)
         {
@@ -163,6 +168,12 @@ public class AdminOrdersController : ControllerBase
             }
         }
 
+        _auditLog.Add(
+            request.Status == OrderStatus.Cancelled ? "Cancel" : "StatusChange",
+            "Order",
+            order.Id.ToString(),
+            new { Status = previousStatus, CancellationReason = previousCancellationReason },
+            new { order.Status, order.CancellationReason });
         await _dbContext.SaveChangesAsync();
 
         foreach (var item in changedItems)

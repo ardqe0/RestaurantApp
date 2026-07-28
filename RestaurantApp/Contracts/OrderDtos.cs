@@ -4,13 +4,13 @@ using RestaurantApp.Models;
 namespace RestaurantApp.Contracts;
 
 public record CreateOrderRequest(
-    [property: Range(1, int.MaxValue)] int TableId,
-    [property: Required, MinLength(1), MaxLength(100)] IReadOnlyCollection<CreateOrderItemRequest> Items);
+    [Range(1, int.MaxValue)] int TableId,
+    [Required, MinLength(1), MaxLength(100)] IReadOnlyCollection<CreateOrderItemRequest> Items);
 
 public record CreateOrderItemRequest(
-    [property: Range(1, int.MaxValue)] int MenuItemId,
-    [property: Range(1, 100)] int Quantity,
-    [property: StringLength(300)] string? Note,
+    [Range(1, int.MaxValue)] int MenuItemId,
+    [Range(1, 100)] int Quantity,
+    [StringLength(300)] string? Note,
     IReadOnlyCollection<int>? OptionIds = null);
 
 public record OrderDto(
@@ -38,7 +38,7 @@ public record OrderItemDto(
 
 public record UpdateOrderStatusRequest(
     OrderStatus Status,
-    [property: StringLength(500)] string? CancellationReason = null);
+    [StringLength(500)] string? CancellationReason = null);
 
 public record UpdateOrderItemStatusRequest(OrderItemStatus Status);
 

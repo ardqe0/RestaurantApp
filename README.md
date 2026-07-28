@@ -56,6 +56,7 @@ uygulaması olarak da derlenebilir.
 - Günlük rapor ve tarih aralığına göre satış analizi
 - Ciro, en çok satan ürünler ve son siparişleri görüntüleme
 - Raporları PDF olarak indirme
+- Kritik yönetim, sipariş ve ödeme işlemlerini audit log üzerinden inceleme
 - Web ve mobil yönetim ekranı
 
 ## Mimari
@@ -109,6 +110,7 @@ flowchart LR
 ```text
 RestaurantApp/
 ├── RestaurantApp/       # ASP.NET Core API, veritabanı ve yayınlanan web dosyaları
+├── RestaurantApp.Tests/ # SQLite tabanlı HTTP entegrasyon testleri
 ├── admin-web/           # React yönetim paneli
 ├── customer-mobile/     # Expo müşteri, mutfak ve mobil yönetim uygulaması
 ├── kitchen-kds/         # Ayrı mutfak ekranı istemcisi
@@ -166,6 +168,19 @@ Varsayılan yerel adresler:
 
 Yeni kayıt olan kullanıcılar otomatik olarak `Customer` rolünü alır. `Kitchen`
 ve `Admin` hesapları yalnızca güvenli başlangıç yapılandırmasıyla oluşturulur.
+
+## Otomatik testler
+
+Testler gerçek HTTP uçlarını geçici bir SQLite veritabanıyla çalıştırır; rol
+yetkileri, sipariş oluşturma, dolu masa koruması, müşteri veri izolasyonu,
+iptal, ödeme ve audit log akışlarını doğrular.
+
+```powershell
+dotnet test .\RestaurantApp.Tests\RestaurantApp.Tests.csproj -c Release
+```
+
+GitHub Actions, `main` dalına gönderilen her değişiklikte ve pull requestlerde
+backend testlerini ve React yönetim paneli derlemesini otomatik çalıştırır.
 
 ## Docker ile çalıştırma
 

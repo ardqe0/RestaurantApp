@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using RestaurantApp.Contracts;
 using RestaurantApp.Data;
 using RestaurantApp.Models;
+using RestaurantApp.Services;
 
 namespace RestaurantApp.Controllers;
 
@@ -13,10 +14,12 @@ namespace RestaurantApp.Controllers;
 public class AdminTablesController : ControllerBase
 {
     private readonly RestaurantDbContext _dbContext;
+    private readonly AuditLogService _auditLog;
 
-    public AdminTablesController(RestaurantDbContext dbContext)
+    public AdminTablesController(RestaurantDbContext dbContext, AuditLogService auditLog)
     {
         _dbContext = dbContext;
+        _auditLog = auditLog;
     }
 
     [HttpGet]
@@ -51,6 +54,8 @@ public class AdminTablesController : ControllerBase
 
         _dbContext.RestaurantTables.Add(table);
         await _dbContext.SaveChangesAsync();
+        _auditLog.Add("Create", "Table", table.Id.ToString(), after: ToAuditValue(table));
+        await _dbContext.SaveChangesAsync();
 
         var dto = new TableDto(table.Id, table.Number, table.QRCode, table.Status, table.Capacity);
         return CreatedAtAction(nameof(GetTables), dto);
@@ -82,12 +87,22 @@ public class AdminTablesController : ControllerBase
             return BadRequest("Aktif siparişi bulunan masa elle boşaltılamaz.");
         }
 
+        var before = ToAuditValue(table);
         table.Number = request.Number;
         table.QRCode = qrCode;
         table.Status = request.Status;
         table.Capacity = request.Capacity;
 
+        _auditLog.Add("Update", "Table", table.Id.ToString(), before, ToAuditValue(table));
         await _dbContext.SaveChangesAsync();
         return NoContent();
     }
+
+    private static object ToAuditValue(RestaurantTable table) => new
+    {
+        table.Number,
+        QRCode = table.QRCode,
+        table.Status,
+        table.Capacity
+    };
 }

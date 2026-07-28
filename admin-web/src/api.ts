@@ -1,5 +1,6 @@
 import type {
   AnalyticsData,
+  AuditLog,
   Category,
   CurrentUser,
   DailyReport,
@@ -53,17 +54,18 @@ export const getCurrentUser = () => request<CurrentUser>("/api/auth/me");
 export const logout = () => request<void>("/api/auth/logout", { method: "POST" });
 
 export async function getDashboardData(reportDate: string): Promise<DashboardData> {
-  const [tables, activeOrders, categories, menuItems, history, dailyReport, summary] = await Promise.all([
+  const [tables, activeOrders, categories, menuItems, history, dailyReport, summary, auditLogs] = await Promise.all([
     request<RestaurantTable[]>("/api/admin/tables"),
     request<Order[]>("/api/admin/orders/active"),
     request<Category[]>("/api/admin/categories"),
     request<MenuItem[]>("/api/admin/menu-items"),
     request<Order[]>(`/api/admin/orders/history?date=${encodeURIComponent(reportDate)}`),
     request<DailyReport>(`/api/admin/reports/daily?date=${encodeURIComponent(reportDate)}`),
-    request<DashboardSummary>("/api/admin/reports/dashboard")
+    request<DashboardSummary>("/api/admin/reports/dashboard"),
+    request<AuditLog[]>("/api/admin/audit-logs?limit=100")
   ]);
 
-  return { tables, activeOrders, categories, menuItems, history, dailyReport, summary };
+  return { tables, activeOrders, categories, menuItems, history, dailyReport, summary, auditLogs };
 }
 
 export async function getAnalytics(startDate: string, endDate: string): Promise<AnalyticsData> {

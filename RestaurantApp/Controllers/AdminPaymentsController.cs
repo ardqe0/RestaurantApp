@@ -18,15 +18,18 @@ public class AdminPaymentsController : ControllerBase
     private readonly RestaurantDbContext _dbContext;
     private readonly IHubContext<OrderHub> _hubContext;
     private readonly OrderPushNotificationService _notificationService;
+    private readonly AuditLogService _auditLog;
 
     public AdminPaymentsController(
         RestaurantDbContext dbContext,
         IHubContext<OrderHub> hubContext,
-        OrderPushNotificationService notificationService)
+        OrderPushNotificationService notificationService,
+        AuditLogService auditLog)
     {
         _dbContext = dbContext;
         _hubContext = hubContext;
         _notificationService = notificationService;
+        _auditLog = auditLog;
     }
 
     [HttpPost]
@@ -93,6 +96,19 @@ public class AdminPaymentsController : ControllerBase
             }
         }
 
+        _auditLog.Add(
+            "Complete",
+            "Payment",
+            order.Id.ToString(),
+            after: new
+            {
+                OrderId = order.Id,
+                payment.Amount,
+                payment.Method,
+                payment.Status,
+                OrderStatus = order.Status,
+                TableStatus = order.Table?.Status
+            });
         await _dbContext.SaveChangesAsync();
 
         var dto = new PaymentDto(payment.Id, payment.OrderId, payment.Amount, payment.Method, payment.Status, payment.CreatedAt);

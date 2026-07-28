@@ -83,6 +83,19 @@ export interface DashboardSummary {
   activeOrderCount: number;
 }
 
+export interface AuditLog {
+  id: number;
+  userName: string;
+  role: string;
+  action: string;
+  entityType: string;
+  entityId: string | null;
+  beforeJson: string | null;
+  afterJson: string | null;
+  ipAddress: string | null;
+  createdAt: string;
+}
+
 export interface DailyRevenue {
   date: string;
   revenue: number;
@@ -126,6 +139,7 @@ export interface DashboardData {
   history: Order[];
   dailyReport: DailyReport;
   summary: DashboardSummary;
+  auditLogs: AuditLog[];
 }
 
 export interface AnalyticsData {

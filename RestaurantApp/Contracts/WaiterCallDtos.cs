@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace RestaurantApp.Contracts;
 
-public record CreateWaiterCallRequest([property: Range(1, int.MaxValue)] int TableId);
+public record CreateWaiterCallRequest([Range(1, int.MaxValue)] int TableId);
 
 public record WaiterCallDto(
     int Id,

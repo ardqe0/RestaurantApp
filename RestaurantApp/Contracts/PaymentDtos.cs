@@ -4,7 +4,7 @@ using RestaurantApp.Models;
 namespace RestaurantApp.Contracts;
 
 public record CreatePaymentRequest(
-    [property: Range(1, int.MaxValue)] int OrderId,
+    [Range(1, int.MaxValue)] int OrderId,
     PaymentMethod Method);
 
 public record PaymentDto(

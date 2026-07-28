@@ -9,29 +9,29 @@ public record CategoryDto(
     bool IsActive);
 
 public record CreateCategoryRequest(
-    [property: Required, StringLength(100)] string Name,
-    [property: Range(0, 10000)] int DisplayOrder,
+    [Required, StringLength(100)] string Name,
+    [Range(0, 10000)] int DisplayOrder,
     bool IsActive = true);
 
 public record UpdateCategoryRequest(
-    [property: Required, StringLength(100)] string Name,
-    [property: Range(0, 10000)] int DisplayOrder,
+    [Required, StringLength(100)] string Name,
+    [Range(0, 10000)] int DisplayOrder,
     bool IsActive);
 
 public record CreateMenuItemRequest(
-    [property: Range(1, int.MaxValue)] int CategoryId,
-    [property: Required, StringLength(150)] string Name,
-    [property: StringLength(500)] string Description,
-    [property: Range(typeof(decimal), "0", "1000000")] decimal Price,
-    [property: StringLength(500)] string? ImageUrl,
+    [Range(1, int.MaxValue)] int CategoryId,
+    [Required, StringLength(150)] string Name,
+    [StringLength(500)] string Description,
+    [Range(typeof(decimal), "0", "1000000")] decimal Price,
+    [StringLength(500)] string? ImageUrl,
     bool IsAvailable,
-    [property: Range(0, 1440)] int PreparationMinutes);
+    [Range(0, 1440)] int PreparationMinutes);
 
 public record UpdateMenuItemRequest(
-    [property: Range(1, int.MaxValue)] int CategoryId,
-    [property: Required, StringLength(150)] string Name,
-    [property: StringLength(500)] string Description,
-    [property: Range(typeof(decimal), "0", "1000000")] decimal Price,
-    [property: StringLength(500)] string? ImageUrl,
+    [Range(1, int.MaxValue)] int CategoryId,
+    [Required, StringLength(150)] string Name,
+    [StringLength(500)] string Description,
+    [Range(typeof(decimal), "0", "1000000")] decimal Price,
+    [StringLength(500)] string? ImageUrl,
     bool IsAvailable,
-    [property: Range(0, 1440)] int PreparationMinutes);
+    [Range(0, 1440)] int PreparationMinutes);
