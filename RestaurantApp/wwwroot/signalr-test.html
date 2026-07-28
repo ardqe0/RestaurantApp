@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="tr">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>RestaurantApp SignalR Test</title>
+    <style>
+        :root {
+            color-scheme: light;
+            font-family: "Segoe UI", Arial, sans-serif;
+            background: #f5f7fb;
+            color: #172033;
+        }
+
+        body {
+            margin: 0;
+            padding: 32px;
+        }
+
+        main {
+            max-width: 980px;
+            margin: 0 auto;
+        }
+
+        header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 26px;
+        }
+
+        .status {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border-radius: 8px;
+            background: #fff;
+            border: 1px solid #d9dfeb;
+            font-weight: 600;
+        }
+
+        .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 999px;
+            background: #8a94a6;
+        }
+
+        .status.connected .dot {
+            background: #15a46e;
+        }
+
+        .status.failed .dot {
+            background: #d92d20;
+        }
+
+        .toolbar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 18px;
+        }
+
+        button {
+            border: 0;
+            border-radius: 8px;
+            background: #1f6feb;
+            color: #fff;
+            cursor: pointer;
+            font-weight: 600;
+            padding: 10px 14px;
+        }
+
+        button.secondary {
+            background: #ffffff;
+            border: 1px solid #ccd4e0;
+            color: #172033;
+        }
+
+        .events {
+            display: grid;
+            gap: 12px;
+        }
+
+        .event {
+            background: #fff;
+            border: 1px solid #d9dfeb;
+            border-radius: 8px;
+            padding: 14px;
+        }
+
+        .event strong {
+            display: block;
+            margin-bottom: 8px;
+        }
+
+        pre {
+            margin: 0;
+            white-space: pre-wrap;
+            word-break: break-word;
+            color: #354052;
+        }
+    </style>
+</head>
+<body>
+<main>
+    <header>
+        <div>
+            <h1>SignalR Test Paneli</h1>
+            <p>Swagger'da sipariş veya durum değişikliği yaptığınızda olaylar burada görünür.</p>
+        </div>
+        <div id="status" class="status">
+            <span class="dot"></span>
+            <span id="statusText">Baglaniyor</span>
+        </div>
+    </header>
+
+    <div class="toolbar">
+        <button id="reconnectButton">Yeniden Baglan</button>
+        <button id="clearButton" class="secondary">Listeyi Temizle</button>
+    </div>
+
+    <section id="events" class="events"></section>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.7/signalr.min.js"></script>
+<script>
+    const status = document.getElementById("status");
+    const statusText = document.getElementById("statusText");
+    const events = document.getElementById("events");
+    const eventNames = [
+        "NewOrder",
+        "OrderStatusChanged",
+        "OrderItemStatusChanged",
+        "TableStatusChanged"
+    ];
+
+    let connection;
+
+    function setStatus(text, className) {
+        status.className = `status ${className || ""}`;
+        statusText.textContent = text;
+    }
+
+    function addEvent(name, payload) {
+        const item = document.createElement("article");
+        item.className = "event";
+        item.innerHTML = `
+            <strong>${new Date().toLocaleTimeString()} - ${name}</strong>
+            <pre>${JSON.stringify(payload, null, 2)}</pre>
+        `;
+        events.prepend(item);
+    }
+
+    async function connect() {
+        if (connection) {
+            await connection.stop();
+        }
+
+        connection = new signalR.HubConnectionBuilder()
+            .withUrl("/hubs/orders")
+            .withAutomaticReconnect()
+            .build();
+
+        eventNames.forEach(name => connection.on(name, payload => addEvent(name, payload)));
+        connection.onreconnecting(() => setStatus("Yeniden baglaniyor", ""));
+        connection.onreconnected(() => setStatus("Baglandi", "connected"));
+        connection.onclose(() => setStatus("Baglanti kapandi", "failed"));
+
+        try {
+            await connection.start();
+            setStatus("Baglandi", "connected");
+        } catch (error) {
+            setStatus("Baglanamadi", "failed");
+            addEvent("ConnectionError", { message: error.message });
+        }
+    }
+
+    document.getElementById("reconnectButton").addEventListener("click", connect);
+    document.getElementById("clearButton").addEventListener("click", () => events.innerHTML = "");
+
+    connect();
+</script>
+</body>
+</html>

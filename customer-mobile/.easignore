@@ -1,0 +1,7 @@
+node_modules/
+.expo/
+dist/
+.web-export-preview/
+*.log
+expo.log
+expo.err.log

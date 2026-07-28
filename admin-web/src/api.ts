@@ -1,0 +1,111 @@
+import type {
+  AnalyticsData,
+  Category,
+  CurrentUser,
+  DailyReport,
+  DashboardData,
+  DashboardSummary,
+  MenuItem,
+  Order,
+  OrderStatus,
+  RestaurantTable,
+  RevenueReport,
+  SalesSummaryReport,
+  TableStatus,
+  TopSellingItem
+} from "./types";
+
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number
+  ) {
+    super(message);
+  }
+}
+
+async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const response = await fetch(path, {
+    credentials: "include",
+    ...init,
+    headers: {
+      ...(init.body ? { "Content-Type": "application/json" } : {}),
+      ...init.headers
+    }
+  });
+
+  if (!response.ok) {
+    const contentType = response.headers.get("content-type") ?? "";
+    const body = contentType.includes("application/json")
+      ? await response.json().catch(() => null)
+      : await response.text().catch(() => "");
+    const message = typeof body === "string"
+      ? body
+      : body?.detail ?? body?.title ?? "İşlem tamamlanamadı.";
+    throw new ApiError(message || `İstek başarısız oldu: ${response.status}`, response.status);
+  }
+
+  if (response.status === 204) return undefined as T;
+  return response.json() as Promise<T>;
+}
+
+export const getCurrentUser = () => request<CurrentUser>("/api/auth/me");
+export const logout = () => request<void>("/api/auth/logout", { method: "POST" });
+
+export async function getDashboardData(reportDate: string): Promise<DashboardData> {
+  const [tables, activeOrders, categories, menuItems, history, dailyReport, summary] = await Promise.all([
+    request<RestaurantTable[]>("/api/admin/tables"),
+    request<Order[]>("/api/admin/orders/active"),
+    request<Category[]>("/api/admin/categories"),
+    request<MenuItem[]>("/api/admin/menu-items"),
+    request<Order[]>(`/api/admin/orders/history?date=${encodeURIComponent(reportDate)}`),
+    request<DailyReport>(`/api/admin/reports/daily?date=${encodeURIComponent(reportDate)}`),
+    request<DashboardSummary>("/api/admin/reports/dashboard")
+  ]);
+
+  return { tables, activeOrders, categories, menuItems, history, dailyReport, summary };
+}
+
+export async function getAnalytics(startDate: string, endDate: string): Promise<AnalyticsData> {
+  const query = `startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`;
+  const [revenue, topItems, bottomItems, summaries] = await Promise.all([
+    request<RevenueReport>(`/api/admin/reports/revenue?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`),
+    request<TopSellingItem[]>(`/api/admin/reports/top-items?${query}&limit=5`),
+    request<TopSellingItem[]>(`/api/admin/reports/bottom-items?${query}&limit=5`),
+    request<SalesSummaryReport>(`/api/admin/reports/summaries?${query}`)
+  ]);
+  return { revenue, topItems, bottomItems, summaries };
+}
+
+export const createCategory = (payload: Omit<Category, "id">) =>
+  request<Category>("/api/admin/categories", { method: "POST", body: JSON.stringify(payload) });
+export const updateCategory = (id: number, payload: Omit<Category, "id">) =>
+  request<void>(`/api/admin/categories/${id}`, { method: "PUT", body: JSON.stringify(payload) });
+export const deleteCategory = (id: number) =>
+  request<void>(`/api/admin/categories/${id}`, { method: "DELETE" });
+
+export type MenuItemPayload = Omit<MenuItem, "id">;
+export const createMenuItem = (payload: MenuItemPayload) =>
+  request<MenuItem>("/api/admin/menu-items", { method: "POST", body: JSON.stringify(payload) });
+export const updateMenuItem = (id: number, payload: MenuItemPayload) =>
+  request<void>(`/api/admin/menu-items/${id}`, { method: "PUT", body: JSON.stringify(payload) });
+export const deleteMenuItem = (id: number) =>
+  request<void>(`/api/admin/menu-items/${id}`, { method: "DELETE" });
+
+export interface TablePayload {
+  number: number;
+  qrCode: string;
+  capacity: number;
+  status: TableStatus;
+}
+
+export const createTable = (payload: Omit<TablePayload, "status">) =>
+  request<RestaurantTable>("/api/admin/tables", { method: "POST", body: JSON.stringify(payload) });
+export const updateTable = (id: number, payload: TablePayload) =>
+  request<void>(`/api/admin/tables/${id}`, { method: "PUT", body: JSON.stringify(payload) });
+
+export const updateOrderStatus = (id: number, status: OrderStatus, cancellationReason?: string) =>
+  request<void>(`/api/admin/orders/${id}/status`, {
+    method: "PUT",
+    body: JSON.stringify({ status, cancellationReason })
+  });
