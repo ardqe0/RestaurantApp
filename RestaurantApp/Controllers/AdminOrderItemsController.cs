@@ -18,15 +18,18 @@ public class AdminOrderItemsController : ControllerBase
     private readonly RestaurantDbContext _dbContext;
     private readonly IHubContext<OrderHub> _hubContext;
     private readonly OrderPushNotificationService _notificationService;
+    private readonly AuditLogService _auditLog;
 
     public AdminOrderItemsController(
         RestaurantDbContext dbContext,
         IHubContext<OrderHub> hubContext,
-        OrderPushNotificationService notificationService)
+        OrderPushNotificationService notificationService,
+        AuditLogService auditLog)
     {
         _dbContext = dbContext;
         _hubContext = hubContext;
         _notificationService = notificationService;
+        _auditLog = auditLog;
     }
 
     [HttpPut("{id:int}/status")]
@@ -51,6 +54,7 @@ public class AdminOrderItemsController : ControllerBase
             return BadRequest($"Sipariş kalemi {orderItem.Status} durumundan {request.Status} durumuna geçirilemez.");
         }
 
+        var previousItemStatus = orderItem.Status;
         var previousOrderStatus = orderItem.Order.Status;
         orderItem.Status = request.Status;
         orderItem.Order.UpdatedAt = DateTime.UtcNow;
@@ -70,6 +74,12 @@ public class AdminOrderItemsController : ControllerBase
             orderItem.Order.Status = OrderStatus.Preparing;
         }
 
+        _auditLog.Add(
+            "StatusChange",
+            "OrderItem",
+            orderItem.Id.ToString(),
+            new { Status = previousItemStatus, OrderStatus = previousOrderStatus },
+            new { orderItem.Status, OrderStatus = orderItem.Order.Status, orderItem.OrderId });
         await _dbContext.SaveChangesAsync();
 
         await _hubContext.SendToOrderAudienceAsync("OrderItemStatusChanged", new OrderItemStatusChangedEvent(

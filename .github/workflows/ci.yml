@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Kodu al
+        uses: actions/checkout@v4
+
+      - name: .NET 8'i kur
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Backend entegrasyon testlerini çalıştır
+        run: dotnet test RestaurantApp.Tests/RestaurantApp.Tests.csproj --configuration Release
+
+      - name: Node.js'i kur
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: pnpm'i kur
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Admin paneli bağımlılıklarını yükle
+        working-directory: admin-web
+        run: pnpm install --frozen-lockfile
+
+      - name: Admin panelini derle
+        working-directory: admin-web
+        run: pnpm run build

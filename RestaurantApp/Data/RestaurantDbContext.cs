@@ -35,6 +35,8 @@ public class RestaurantDbContext : IdentityDbContext<AppUser>
 
     public DbSet<WaiterCall> WaiterCalls => Set<WaiterCall>();
 
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -164,6 +166,21 @@ public class RestaurantDbContext : IdentityDbContext<AppUser>
                 .WithMany()
                 .HasForeignKey(summary => summary.MostSoldItemId)
                 .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<AuditLog>(entity =>
+        {
+            entity.Property(log => log.UserId).HasMaxLength(450);
+            entity.Property(log => log.UserName).HasMaxLength(256).IsRequired();
+            entity.Property(log => log.Role).HasMaxLength(50).IsRequired();
+            entity.Property(log => log.Action).HasMaxLength(80).IsRequired();
+            entity.Property(log => log.EntityType).HasMaxLength(80).IsRequired();
+            entity.Property(log => log.EntityId).HasMaxLength(100);
+            entity.Property(log => log.BeforeJson).HasMaxLength(4000);
+            entity.Property(log => log.AfterJson).HasMaxLength(4000);
+            entity.Property(log => log.IpAddress).HasMaxLength(64);
+            entity.HasIndex(log => log.CreatedAt);
+            entity.HasIndex(log => new { log.EntityType, log.EntityId });
         });
 
         SeedInitialData(modelBuilder);

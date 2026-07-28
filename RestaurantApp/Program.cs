@@ -148,6 +148,8 @@ builder.Services.AddRateLimiter(options =>
         }));
 });
 builder.Services.AddScoped<JwtTokenService>();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<AuditLogService>();
 builder.Services.AddHttpClient<OrderPushNotificationService>();
 builder.Services.AddSignalR();
 builder.Services.AddCors(options =>
@@ -172,7 +174,10 @@ using (var scope = app.Services.CreateScope())
         await dbContext.Database.MigrateAsync();
     }
 
-    await AuthSeeder.InitializeAsync(scope.ServiceProvider, builder.Configuration);
+    if (builder.Configuration.GetValue("Database:SeedAuthOnStartup", true))
+    {
+        await AuthSeeder.InitializeAsync(scope.ServiceProvider, builder.Configuration);
+    }
 }
 
 // Configure the HTTP request pipeline.
@@ -303,3 +308,5 @@ app.MapFallbackToFile("/customer/{*path:nonfile}", "customer/index.html");
 app.MapFallbackToFile("/kitchen/{*path:nonfile}", "kitchen/index.html");
 
 app.Run();
+
+public partial class Program;

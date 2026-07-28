@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using RestaurantApp.Contracts;
 using RestaurantApp.Data;
 using RestaurantApp.Models;
+using RestaurantApp.Services;
 
 namespace RestaurantApp.Controllers;
 
@@ -13,10 +14,12 @@ namespace RestaurantApp.Controllers;
 public class AdminCategoriesController : ControllerBase
 {
     private readonly RestaurantDbContext _dbContext;
+    private readonly AuditLogService _auditLog;
 
-    public AdminCategoriesController(RestaurantDbContext dbContext)
+    public AdminCategoriesController(RestaurantDbContext dbContext, AuditLogService auditLog)
     {
         _dbContext = dbContext;
+        _auditLog = auditLog;
     }
 
     [HttpGet]
@@ -43,6 +46,8 @@ public class AdminCategoriesController : ControllerBase
 
         _dbContext.Categories.Add(category);
         await _dbContext.SaveChangesAsync();
+        _auditLog.Add("Create", "Category", category.Id.ToString(), after: ToAuditValue(category));
+        await _dbContext.SaveChangesAsync();
 
         var dto = new CategoryDto(category.Id, category.Name, category.DisplayOrder, category.IsActive);
         return CreatedAtAction(nameof(GetCategories), dto);
@@ -57,10 +62,12 @@ public class AdminCategoriesController : ControllerBase
             return NotFound();
         }
 
+        var before = ToAuditValue(category);
         category.Name = request.Name.Trim();
         category.DisplayOrder = request.DisplayOrder;
         category.IsActive = request.IsActive;
 
+        _auditLog.Add("Update", "Category", category.Id.ToString(), before, ToAuditValue(category));
         await _dbContext.SaveChangesAsync();
         return NoContent();
     }
@@ -74,8 +81,16 @@ public class AdminCategoriesController : ControllerBase
             return NotFound();
         }
 
+        _auditLog.Add("Delete", "Category", category.Id.ToString(), before: ToAuditValue(category));
         _dbContext.Categories.Remove(category);
         await _dbContext.SaveChangesAsync();
         return NoContent();
     }
+
+    private static object ToAuditValue(Category category) => new
+    {
+        category.Name,
+        category.DisplayOrder,
+        category.IsActive
+    };
 }

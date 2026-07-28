@@ -197,3 +197,47 @@ textarea { min-height: 76px; resize: vertical; }
   .qr-print-card, .qr-print-card * { visibility: visible !important; }
   .qr-print-card { background: #fff; border: 2px solid #17212b; color-adjust: exact; left: 50%; max-width: 115mm; padding: 12mm; position: fixed; top: 16mm; transform: translateX(-50%); width: 115mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
+.audit-list {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.audit-row {
+  border: 1px solid #dfe6e2;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.audit-row summary {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem 1rem;
+}
+
+.audit-row summary span,
+.audit-details > div {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.audit-row small {
+  color: #65716b;
+}
+
+.audit-details {
+  border-top: 1px solid #e8ecea;
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.9rem 1rem 1rem;
+}
+
+.audit-details code {
+  background: #f4f7f5;
+  border-radius: 8px;
+  overflow-wrap: anywhere;
+  padding: 0.65rem;
+  white-space: pre-wrap;
+}
