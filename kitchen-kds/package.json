@@ -22,7 +22,7 @@
     "react-native-web": "~0.19.10"
   },
   "devDependencies": {
-    "@react-native/assets-registry": "0.74.87",
+    "@react-native/assets-registry": "0.86.2",
     "@types/react": "~18.2.79",
     "babel-preset-expo": "~11.0.15",
     "typescript": "~5.3.3"
