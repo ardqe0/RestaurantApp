@@ -68,6 +68,7 @@ builder.Services.AddControllers()
         options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
         options.JsonSerializerOptions.Converters.Add(new UtcDateTimeJsonConverter());
     });
+builder.Services.AddProblemDetails();
 builder.Services.AddDbContext<RestaurantDbContext>(options =>
     options.UseSqlServer(
         builder.Configuration.GetConnectionString("DefaultConnection"),
@@ -181,6 +182,10 @@ using (var scope = app.Services.CreateScope())
 }
 
 // Configure the HTTP request pipeline.
+// Geliştirme ortamında da istisnaların stack trace ve Authorization başlığıyla
+// birlikte istemciye sızmasını önleyip standart ProblemDetails yanıtı döndürür.
+app.UseExceptionHandler();
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();

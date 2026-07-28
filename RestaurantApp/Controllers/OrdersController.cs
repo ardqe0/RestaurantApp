@@ -126,8 +126,11 @@ public class OrdersController : ControllerBase
 
         order.TotalAmount = order.Items.Sum(item => item.Quantity * item.UnitPrice);
 
-        await using (var transaction = await _dbContext.Database.BeginTransactionAsync())
+        var tableClaimed = false;
+        var executionStrategy = _dbContext.Database.CreateExecutionStrategy();
+        await executionStrategy.ExecuteAsync(async () =>
         {
+            await using var transaction = await _dbContext.Database.BeginTransactionAsync();
             var claimedTableCount = await _dbContext.RestaurantTables
                 .Where(item => item.Id == table.Id && item.Status == TableStatus.Empty)
                 .ExecuteUpdateAsync(setters => setters
@@ -135,12 +138,19 @@ public class OrdersController : ControllerBase
 
             if (claimedTableCount == 0)
             {
-                return BadRequest("Bu masa dolu. Açık sipariş tamamlanmadan yeni sipariş verilemez.");
+                await transaction.RollbackAsync();
+                return;
             }
 
+            tableClaimed = true;
             _dbContext.Orders.Add(order);
             await _dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
+        });
+
+        if (!tableClaimed)
+        {
+            return BadRequest("Bu masa dolu. Açık sipariş tamamlanmadan yeni sipariş verilemez.");
         }
 
         var createdOrder = await GetOrderDto(order.Id, customerUserId);
