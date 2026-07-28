@@ -20,6 +20,7 @@ import {
   getCurrentUser,
   resolveWaiterCall,
   signOut,
+  splitPayment,
   updateItemStatus
 } from "./src/api";
 import type { OrderDto, OrderItemDto, OrderItemStatus, PaymentDto, PaymentMethod, WaiterCallDto } from "./src/types";
@@ -35,6 +36,7 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [updatingItemId, setUpdatingItemId] = useState<number | null>(null);
   const [payingOrderId, setPayingOrderId] = useState<number | null>(null);
+  const [splittingOrderId, setSplittingOrderId] = useState<number | null>(null);
   const [resolvingWaiterCallId, setResolvingWaiterCallId] = useState<number | null>(null);
   const [cancellingOrderId, setCancellingOrderId] = useState<number | null>(null);
   const [cancellationReason, setCancellationReason] = useState("");
@@ -194,6 +196,18 @@ export default function App() {
       setError(err instanceof Error ? err.message : "Ödeme alınamadı.");
     } finally {
       setPayingOrderId(null);
+    }
+  }
+
+  async function changePaymentSplit(orderId: number, splitCount: number) {
+    setSplittingOrderId(orderId);
+    try {
+      await splitPayment(apiBaseUrl.trim(), orderId, splitCount);
+      await loadOrders(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Adisyon bölünemedi.");
+    } finally {
+      setSplittingOrderId(null);
     }
   }
 
@@ -381,7 +395,7 @@ export default function App() {
               <OrderItemRow key={item.id} item={item} isUpdating={updatingItemId === item.id} onUpdate={changeItemStatus} />
             ))}
             {order.status === "Ready" && order.tableStatus === "WaitingForPayment" && order.requestedPaymentMethod ? (
-              <PaymentActions orderId={order.id} method={order.requestedPaymentMethod} payments={order.payments ?? []} isPaying={payingOrderId === order.id} onPayment={takePayment} />
+              <PaymentActions orderId={order.id} method={order.requestedPaymentMethod} payments={order.payments ?? []} isPaying={payingOrderId === order.id} isSplitting={splittingOrderId === order.id} onPayment={takePayment} onSplit={changePaymentSplit} />
             ) : null}
             <Pressable onPress={() => { setCancellingOrderId(order.id); setCancellationReason(""); }} style={styles.cancelOrderButton}>
               <Text style={styles.cancelOrderButtonText}>Siparişi iptal et</Text>
@@ -441,11 +455,34 @@ function OrderItemRow({ item, isUpdating, onUpdate }: { item: OrderItemDto; isUp
   );
 }
 
-function PaymentActions({ orderId, method, payments, isPaying, onPayment }: { orderId: number; method: PaymentMethod; payments: PaymentDto[]; isPaying: boolean; onPayment: (orderId: number, method: PaymentMethod, paymentId?: number) => Promise<void> }) {
+function PaymentActions({ orderId, method, payments, isPaying, isSplitting, onPayment, onSplit }: { orderId: number; method: PaymentMethod; payments: PaymentDto[]; isPaying: boolean; isSplitting: boolean; onPayment: (orderId: number, method: PaymentMethod, paymentId?: number) => Promise<void>; onSplit: (orderId: number, splitCount: number) => Promise<void> }) {
+  const canChangeSplit = !payments.some((payment) => payment.status === "Completed");
+
   return (
     <View style={styles.paymentPanel}>
       <Text style={styles.paymentTitle}>Müşterinin seçtiği ödeme yöntemi: {paymentMethodText(method)}</Text>
       <Text style={styles.paymentHint}>{payments.length > 1 ? `Adisyon ${payments.length} parçaya bölündü.` : "Tek adisyon"} · Tüm parçalar ödenince masa boşalır.</Text>
+      {canChangeSplit ? (
+        <View style={styles.splitPanel}>
+          <Text style={styles.splitTitle}>Adisyonu böl</Text>
+          <View style={styles.splitActions}>
+            {[2, 3, 4].map((splitCount) => (
+              <Pressable
+                key={splitCount}
+                disabled={isPaying || isSplitting || payments.length === splitCount}
+                onPress={() => void onSplit(orderId, splitCount)}
+                style={[
+                  styles.splitButton,
+                  payments.length === splitCount ? styles.splitButtonSelected : null,
+                  (isPaying || isSplitting) ? styles.disabled : null
+                ]}
+              >
+                <Text style={styles.splitButtonText}>{payments.length === splitCount ? `✓ ${splitCount} parça` : `${splitCount} parçaya böl`}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+      ) : null}
       <View style={styles.paymentActions}>
         {(payments.length ? payments : [{ id: 0, amount: 0, status: "Pending", method } as PaymentDto]).map((payment, index) => (
           <PaymentButton
@@ -453,7 +490,7 @@ function PaymentActions({ orderId, method, payments, isPaying, onPayment }: { or
             label={payment.status === "Completed" ? `${index + 1}. parça ödendi` : payments.length > 1 ? `${index + 1}. parça · ${payment.amount.toFixed(2)} TL` : "Müşteriden ödeme alındı"}
             method={payment.method}
             paymentId={payment.id || undefined}
-            disabled={isPaying || payment.status === "Completed"}
+            disabled={isPaying || isSplitting || payment.status === "Completed"}
             orderId={orderId}
             onPayment={onPayment}
           />
@@ -466,7 +503,7 @@ function PaymentActions({ orderId, method, payments, isPaying, onPayment }: { or
 function PaymentButton({ label, method, paymentId, disabled, orderId, onPayment }: { label: string; method: PaymentMethod; paymentId?: number; disabled: boolean; orderId: number; onPayment: (orderId: number, method: PaymentMethod, paymentId?: number) => Promise<void> }) {
   return (
     <Pressable disabled={disabled} onPress={() => void onPayment(orderId, method, paymentId)} style={[styles.paymentButton, disabled ? styles.disabled : null]}>
-      <Text style={styles.paymentButtonText}>{disabled ? "..." : label}</Text>
+      <Text style={styles.paymentButtonText}>{label}</Text>
     </Pressable>
   );
 }
@@ -533,5 +570,5 @@ const styles = StyleSheet.create({
   stats: { flexDirection: "row", gap: 8 }, stat: { backgroundColor: "#253b53", borderRadius: 10, flex: 1, gap: 3, padding: 12 }, statValue: { color: "#fff", fontSize: 24, fontWeight: "900" }, statLabel: { color: "#b8c6d1", fontSize: 12, fontWeight: "700" }, empty: { color: "#b8c6d1", textAlign: "center" },
   orderCard: { backgroundColor: "#fff", borderRadius: 10, gap: 8, padding: 14 }, overdueOrderCard: { backgroundColor: "#fff8e7", borderColor: "#f59e0b", borderWidth: 2 }, criticalOrderCard: { backgroundColor: "#fff1f2", borderColor: "#dc2626", borderWidth: 3 }, criticalOrderCardBlink: { backgroundColor: "#fecaca", borderColor: "#ff0000" }, orderHeader: { alignItems: "center", borderBottomColor: "#e7edf2", borderBottomWidth: 1, flexDirection: "row", justifyContent: "space-between", paddingBottom: 10 }, tableTitle: { color: "#17212b", fontSize: 21, fontWeight: "900" }, orderMeta: { color: "#667788", fontSize: 13, marginTop: 2 }, waitingTime: { color: "#178251", fontSize: 12, fontWeight: "800", marginTop: 4 }, waitingTimeOverdue: { color: "#b45309" }, waitingTimeCritical: { color: "#b91c1c", fontSize: 13, fontWeight: "900" }, statusPill: { backgroundColor: "#fff3cf", borderRadius: 99, paddingHorizontal: 10, paddingVertical: 6 }, readyPill: { backgroundColor: "#d8f3e7" }, statusText: { color: "#805900", fontSize: 12, fontWeight: "800" },
   itemRow: { alignItems: "center", borderBottomColor: "#edf1f4", borderBottomWidth: 1, flexDirection: "row", gap: 10, paddingVertical: 9 }, itemName: { color: "#17212b", fontSize: 16, fontWeight: "800" }, note: { color: "#9b5a00", fontSize: 13, marginTop: 2 }, itemStatus: { color: "#667788", fontSize: 12, marginTop: 4 }, actionButton: { backgroundColor: "#e36b36", borderRadius: 8, minWidth: 105, paddingHorizontal: 10, paddingVertical: 10 }, actionButtonText: { color: "#fff", fontSize: 12, fontWeight: "900", textAlign: "center" }, done: { color: "#178251", fontSize: 13, fontWeight: "900" }, disabled: { opacity: 0.55 }
-  ,paymentPanel: { backgroundColor: "#eef8f2", borderRadius: 8, gap: 5, marginTop: 4, padding: 10 }, paymentTitle: { color: "#17633f", fontSize: 14, fontWeight: "900" }, paymentHint: { color: "#416451", fontSize: 12 }, paymentActions: { flexDirection: "row", gap: 8, marginTop: 3 }, paymentButton: { backgroundColor: "#178251", borderRadius: 7, flex: 1, paddingVertical: 9 }, paymentButtonText: { color: "#fff", fontSize: 12, fontWeight: "900", textAlign: "center" }, cancelOrderButton: { backgroundColor: "#b83a31", borderRadius: 8, marginTop: 8, paddingVertical: 10 }, cancelOrderButtonText: { color: "#fff", fontSize: 13, fontWeight: "900", textAlign: "center" }, cancelModalBackdrop: { alignItems: "center", backgroundColor: "#0008", bottom: 0, justifyContent: "center", left: 0, position: "absolute", right: 0, top: 0, zIndex: 10 }, cancelModal: { backgroundColor: "#fff", borderRadius: 12, gap: 10, maxWidth: 430, padding: 18, width: "92%" }, cancelModalTitle: { color: "#17212b", fontSize: 18, fontWeight: "900" }, cancelModalHint: { color: "#667788", fontSize: 13 }, cancelReasonInput: { borderColor: "#cbd5df", borderRadius: 8, borderWidth: 1, minHeight: 80, padding: 10 }, cancelModalActions: { flexDirection: "row", gap: 8 }, secondaryButton: { backgroundColor: "#31475d", borderRadius: 8, flex: 1, paddingVertical: 10 }, secondaryButtonText: { color: "#fff", fontWeight: "800", textAlign: "center" }, cancelConfirmButton: { backgroundColor: "#b83a31", borderRadius: 8, flex: 1, paddingVertical: 10 }, cancelConfirmButtonText: { color: "#fff", fontWeight: "800", textAlign: "center" }
+  ,paymentPanel: { backgroundColor: "#eef8f2", borderRadius: 8, gap: 5, marginTop: 4, padding: 10 }, paymentTitle: { color: "#17633f", fontSize: 14, fontWeight: "900" }, paymentHint: { color: "#416451", fontSize: 12 }, splitPanel: { gap: 6, marginTop: 4 }, splitTitle: { color: "#284d3a", fontSize: 12, fontWeight: "800" }, splitActions: { flexDirection: "row", flexWrap: "wrap", gap: 6 }, splitButton: { backgroundColor: "#dcebe3", borderRadius: 7, minWidth: 110, paddingHorizontal: 9, paddingVertical: 9 }, splitButtonSelected: { backgroundColor: "#9fd6b9" }, splitButtonText: { color: "#175b3a", fontSize: 11, fontWeight: "900", textAlign: "center" }, paymentActions: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 3 }, paymentButton: { backgroundColor: "#178251", borderRadius: 7, flexGrow: 1, minWidth: 180, paddingVertical: 9 }, paymentButtonText: { color: "#fff", fontSize: 12, fontWeight: "900", textAlign: "center" }, cancelOrderButton: { backgroundColor: "#b83a31", borderRadius: 8, marginTop: 8, paddingVertical: 10 }, cancelOrderButtonText: { color: "#fff", fontSize: 13, fontWeight: "900", textAlign: "center" }, cancelModalBackdrop: { alignItems: "center", backgroundColor: "#0008", bottom: 0, justifyContent: "center", left: 0, position: "absolute", right: 0, top: 0, zIndex: 10 }, cancelModal: { backgroundColor: "#fff", borderRadius: 12, gap: 10, maxWidth: 430, padding: 18, width: "92%" }, cancelModalTitle: { color: "#17212b", fontSize: 18, fontWeight: "900" }, cancelModalHint: { color: "#667788", fontSize: 13 }, cancelReasonInput: { borderColor: "#cbd5df", borderRadius: 8, borderWidth: 1, minHeight: 80, padding: 10 }, cancelModalActions: { flexDirection: "row", gap: 8 }, secondaryButton: { backgroundColor: "#31475d", borderRadius: 8, flex: 1, paddingVertical: 10 }, secondaryButtonText: { color: "#fff", fontWeight: "800", textAlign: "center" }, cancelConfirmButton: { backgroundColor: "#b83a31", borderRadius: 8, flex: 1, paddingVertical: 10 }, cancelConfirmButtonText: { color: "#fff", fontWeight: "800", textAlign: "center" }
 });
