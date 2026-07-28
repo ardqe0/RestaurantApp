@@ -2,6 +2,7 @@ export type TableStatus = "Empty" | "Occupied" | "WaitingForPayment";
 export type OrderStatus = "Pending" | "Preparing" | "Ready" | "Delivered" | "Cancelled";
 export type OrderItemStatus = "Pending" | "Preparing" | "Ready";
 export type PaymentMethod = "Cash" | "CreditCard" | "QrPayment";
+export type CampaignDiscountType = "Percentage" | "FixedAmount";
 
 export interface CurrentUser {
   username: string;
@@ -12,6 +13,17 @@ export interface Category {
   id: number;
   name: string;
   displayOrder: number;
+  isActive: boolean;
+}
+
+export interface Campaign {
+  id: number;
+  name: string;
+  discountType: CampaignDiscountType;
+  discountValue: number;
+  minimumOrderAmount: number;
+  startsAt: string;
+  endsAt: string;
   isActive: boolean;
 }
 
@@ -53,6 +65,9 @@ export interface Order {
   createdAt: string;
   updatedAt: string;
   totalAmount: number;
+  subtotalAmount: number;
+  discountAmount: number;
+  campaignName: string | null;
   requestedPaymentMethod: PaymentMethod | null;
   cancellationReason: string | null;
   items: OrderItem[];
@@ -140,6 +155,7 @@ export interface DashboardData {
   dailyReport: DailyReport;
   summary: DashboardSummary;
   auditLogs: AuditLog[];
+  campaigns: Campaign[];
 }
 
 export interface AnalyticsData {

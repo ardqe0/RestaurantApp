@@ -98,9 +98,9 @@ export function getOrder(baseUrl: string, orderId: number) {
   return request<OrderDto>(baseUrl, `/api/orders/${orderId}`);
 }
 
-export function requestPayment(baseUrl: string, orderId: number, method: PaymentMethod) {
+export function requestPayment(baseUrl: string, orderId: number, method: PaymentMethod, splitCount = 1) {
   return request<void>(baseUrl, `/api/orders/${orderId}/request-payment`, {
     method: "POST",
-    body: JSON.stringify({ method })
+    body: JSON.stringify({ method, splitCount })
   });
 }

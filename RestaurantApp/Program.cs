@@ -131,7 +131,7 @@ builder.Services.AddRateLimiter(options =>
         partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
         factory: _ => new FixedWindowRateLimiterOptions
         {
-            PermitLimit = 10,
+            PermitLimit = builder.Configuration.GetValue("RateLimiting:AuthPermitLimit", 10),
             Window = TimeSpan.FromMinutes(1),
             QueueLimit = 0,
             AutoReplenishment = true
@@ -142,7 +142,7 @@ builder.Services.AddRateLimiter(options =>
             ?? "unknown",
         factory: _ => new FixedWindowRateLimiterOptions
         {
-            PermitLimit = 30,
+            PermitLimit = builder.Configuration.GetValue("RateLimiting:CustomerActionPermitLimit", 30),
             Window = TimeSpan.FromMinutes(1),
             QueueLimit = 0,
             AutoReplenishment = true

@@ -4,6 +4,8 @@ export type OrderStatus = "Pending" | "Preparing" | "Ready" | "Delivered" | "Can
 
 export type OrderItemStatus = "Pending" | "Preparing" | "Ready";
 export type PaymentMethod = "Cash" | "CreditCard" | "QrPayment";
+export type PaymentStatus = "Pending" | "Completed" | "Failed";
+export type CampaignDiscountType = "Percentage" | "FixedAmount";
 
 export type TableDto = {
   id: number;
@@ -64,10 +66,24 @@ export type OrderDto = {
   createdAt: string;
   updatedAt: string;
   totalAmount: number;
+  subtotalAmount: number;
+  discountAmount: number;
+  campaignName?: string | null;
   requestedPaymentMethod?: PaymentMethod | null;
   cancellationReason?: string | null;
   items: OrderItemDto[];
   review?: OrderReviewDto | null;
+  payments?: PaymentDto[] | null;
+};
+
+export type PaymentDto = {
+  id: number;
+  orderId: number;
+  amount: number;
+  method: PaymentMethod;
+  status: PaymentStatus;
+  createdAt: string;
+  completedAt?: string | null;
 };
 
 export type OrderReviewDto = {
@@ -83,6 +99,17 @@ export type AdminCategoryDto = {
   id: number;
   name: string;
   displayOrder: number;
+  isActive: boolean;
+};
+
+export type CampaignDto = {
+  id: number;
+  name: string;
+  discountType: CampaignDiscountType;
+  discountValue: number;
+  minimumOrderAmount: number;
+  startsAt: string;
+  endsAt: string;
   isActive: boolean;
 };
 
@@ -137,6 +164,7 @@ export type AdminDashboardDto = {
   menuItems: MenuItemDto[];
   dailyReport: DailyReportDto;
   summary: DashboardSummaryDto;
+  campaigns: CampaignDto[];
 };
 
 export type AdminAnalyticsDto = {

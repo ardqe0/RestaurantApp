@@ -46,10 +46,10 @@ export function cancelOrder(baseUrl: string, orderId: number, reason: string) {
   });
 }
 
-export function createPayment(baseUrl: string, orderId: number, method: PaymentMethod) {
+export function createPayment(baseUrl: string, orderId: number, method: PaymentMethod, paymentId?: number) {
   return request<void>(baseUrl, "/api/admin/payments", {
     method: "POST",
-    body: JSON.stringify({ orderId, method })
+    body: JSON.stringify({ orderId, method, paymentId })
   });
 }
 

@@ -5,7 +5,8 @@ namespace RestaurantApp.Contracts;
 
 public record CreatePaymentRequest(
     [Range(1, int.MaxValue)] int OrderId,
-    PaymentMethod Method);
+    PaymentMethod Method,
+    int? PaymentId = null);
 
 public record PaymentDto(
     int Id,
@@ -13,4 +14,5 @@ public record PaymentDto(
     decimal Amount,
     PaymentMethod Method,
     PaymentStatus Status,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    DateTime? CompletedAt = null);

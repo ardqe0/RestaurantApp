@@ -20,13 +20,23 @@ public class Order
 
     public decimal TotalAmount { get; set; }
 
+    public decimal SubtotalAmount { get; set; }
+
+    public decimal DiscountAmount { get; set; }
+
+    public int? CampaignId { get; set; }
+
+    public Campaign? Campaign { get; set; }
+
+    public string? CampaignName { get; set; }
+
     public PaymentMethod? RequestedPaymentMethod { get; set; }
 
     public string? CancellationReason { get; set; }
 
     public ICollection<OrderItem> Items { get; set; } = new List<OrderItem>();
 
-    public Payment? Payment { get; set; }
+    public ICollection<Payment> Payments { get; set; } = new List<Payment>();
 
     public OrderReview? Review { get; set; }
 }

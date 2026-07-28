@@ -16,18 +16,22 @@ import {
 } from "react-native";
 import {
   createCategory,
+  createCampaign,
   createMenuItem,
   deleteCategory,
+  deleteCampaign,
   deleteMenuItem,
   getAdminAnalytics,
   getAdminDashboard,
   updateCategory,
+  updateCampaign,
   updateMenuItem
 } from "./adminApi";
 import type {
   AdminAnalyticsDto,
   AdminCategoryDto,
   AdminDashboardDto,
+  CampaignDto,
   MenuItemDto,
   OrderDto,
   OrderStatus,
@@ -35,7 +39,7 @@ import type {
   TableStatus
 } from "./types";
 
-type AdminTab = "overview" | "orders" | "tables" | "menu" | "reports";
+type AdminTab = "overview" | "orders" | "tables" | "menu" | "campaigns" | "reports";
 
 type AdminScreenProps = {
   apiBaseUrl: string;
@@ -48,6 +52,7 @@ const tabs: { key: AdminTab; label: string }[] = [
   { key: "orders", label: "Siparişler" },
   { key: "tables", label: "Masalar" },
   { key: "menu", label: "Menü" },
+  { key: "campaigns", label: "Kampanya" },
   { key: "reports", label: "Raporlar" }
 ];
 
@@ -140,6 +145,9 @@ export function AdminScreen({ apiBaseUrl, username, onLogout }: AdminScreenProps
         {data && activeTab === "tables" ? <TablesTab data={data} /> : null}
         {data && activeTab === "menu" ? (
           <MenuTab data={data} apiBaseUrl={apiBaseUrl} onChanged={() => loadAll(false)} />
+        ) : null}
+        {data && activeTab === "campaigns" ? (
+          <CampaignsTab data={data} apiBaseUrl={apiBaseUrl} onChanged={() => loadAll(false)} />
         ) : null}
         {data && activeTab === "reports" ? (
           <ReportsTab
@@ -302,6 +310,159 @@ function TablesTab({ data }: { data: AdminDashboardDto }) {
           );
         })}
       </View>
+    </>
+  );
+}
+
+type CampaignDraft = {
+  id?: number;
+  name: string;
+  discountType: CampaignDto["discountType"];
+  discountValue: string;
+  minimumOrderAmount: string;
+  startsAt: string;
+  endsAt: string;
+  isActive: boolean;
+};
+
+function CampaignsTab({
+  data,
+  apiBaseUrl,
+  onChanged
+}: {
+  data: AdminDashboardDto;
+  apiBaseUrl: string;
+  onChanged: () => void | Promise<void>;
+}) {
+  const [draft, setDraft] = useState<CampaignDraft | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+
+  function openNew() {
+    const startsAt = new Date();
+    const endsAt = new Date(startsAt);
+    endsAt.setDate(endsAt.getDate() + 7);
+    setDraft({
+      name: "",
+      discountType: "Percentage",
+      discountValue: "10",
+      minimumOrderAmount: "0",
+      startsAt: startsAt.toISOString(),
+      endsAt: endsAt.toISOString(),
+      isActive: true
+    });
+  }
+
+  function openCampaign(campaign: CampaignDto) {
+    setDraft({
+      id: campaign.id,
+      name: campaign.name,
+      discountType: campaign.discountType,
+      discountValue: String(campaign.discountValue).replace(".", ","),
+      minimumOrderAmount: String(campaign.minimumOrderAmount).replace(".", ","),
+      startsAt: campaign.startsAt,
+      endsAt: campaign.endsAt,
+      isActive: campaign.isActive
+    });
+  }
+
+  async function save() {
+    if (!draft?.name.trim()) return Alert.alert("Eksik bilgi", "Kampanya adı zorunludur.");
+    const discountValue = Number(draft.discountValue.replace(",", "."));
+    const minimumOrderAmount = Number(draft.minimumOrderAmount.replace(",", "."));
+    if (!Number.isFinite(discountValue) || discountValue <= 0 || !Number.isFinite(minimumOrderAmount) || minimumOrderAmount < 0) {
+      return Alert.alert("Geçersiz bilgi", "İndirim ve minimum sepet tutarını kontrol edin.");
+    }
+    if (draft.discountType === "Percentage" && discountValue > 100) {
+      return Alert.alert("Geçersiz indirim", "Yüzde indirimi 100'den büyük olamaz.");
+    }
+
+    setIsSaving(true);
+    try {
+      const input = {
+        name: draft.name.trim(),
+        discountType: draft.discountType,
+        discountValue,
+        minimumOrderAmount,
+        startsAt: draft.startsAt,
+        endsAt: draft.endsAt,
+        isActive: draft.isActive
+      };
+      if (draft.id) await updateCampaign(apiBaseUrl, draft.id, input);
+      else await createCampaign(apiBaseUrl, input);
+      setDraft(null);
+      await onChanged();
+    } catch (reason) {
+      Alert.alert("Kampanya kaydedilemedi", reason instanceof Error ? reason.message : "İstek başarısız oldu.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  function remove(campaign: CampaignDto) {
+    Alert.alert("Kampanyayı kaldır", `"${campaign.name}" kampanyası kaldırılsın mı?`, [
+      { text: "Vazgeç", style: "cancel" },
+      {
+        text: "Kaldır",
+        style: "destructive",
+        onPress: () => void (async () => {
+          try {
+            await deleteCampaign(apiBaseUrl, campaign.id);
+            await onChanged();
+          } catch (reason) {
+            Alert.alert("Kampanya kaldırılamadı", reason instanceof Error ? reason.message : "İstek başarısız oldu.");
+          }
+        })()
+      }
+    ]);
+  }
+
+  return (
+    <>
+      <Text style={styles.pageTitle}>Kampanya ve indirimler</Text>
+      <Text style={styles.pageSubtitle}>Yeni kampanyalar varsayılan olarak 7 gün geçerlidir.</Text>
+      <Pressable onPress={openNew} style={styles.menuToolbarButton}>
+        <Text style={styles.menuToolbarButtonText}>+ Kampanya oluştur</Text>
+      </Pressable>
+
+      {draft ? (
+        <View style={styles.editorCard}>
+          <Text style={styles.editorTitle}>{draft.id ? "Kampanyayı düzenle" : "Kampanya oluştur"}</Text>
+          <Text style={styles.editorLabel}>Kampanya adı</Text>
+          <TextInput value={draft.name} onChangeText={(name) => setDraft({ ...draft, name })} style={styles.editorInput} />
+          <Text style={styles.editorLabel}>İndirim türü</Text>
+          <View style={styles.menuToolbar}>
+            {(["Percentage", "FixedAmount"] as const).map((type) => (
+              <Pressable key={type} onPress={() => setDraft({ ...draft, discountType: type })} style={[styles.menuToolbarButton, draft.discountType === type ? styles.activeTab : null]}>
+                <Text style={[styles.menuToolbarButtonText, draft.discountType === type ? styles.activeTabText : null]}>{type === "Percentage" ? "Yüzde" : "Sabit tutar"}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <Text style={styles.editorLabel}>İndirim değeri</Text>
+          <TextInput keyboardType="decimal-pad" value={draft.discountValue} onChangeText={(discountValue) => setDraft({ ...draft, discountValue })} style={styles.editorInput} />
+          <Text style={styles.editorLabel}>Minimum sepet tutarı</Text>
+          <TextInput keyboardType="decimal-pad" value={draft.minimumOrderAmount} onChangeText={(minimumOrderAmount) => setDraft({ ...draft, minimumOrderAmount })} style={styles.editorInput} />
+          <View style={styles.switchRow}><Text style={styles.editorLabel}>Aktif</Text><Switch value={draft.isActive} onValueChange={(isActive) => setDraft({ ...draft, isActive })} /></View>
+          <View style={styles.editorActions}>
+            <Pressable onPress={() => setDraft(null)} style={styles.cancelButton}><Text style={styles.cancelButtonText}>Vazgeç</Text></Pressable>
+            <Pressable disabled={isSaving} onPress={() => void save()} style={styles.saveButton}><Text style={styles.saveButtonText}>{isSaving ? "Kaydediliyor…" : "Kaydet"}</Text></Pressable>
+          </View>
+        </View>
+      ) : null}
+
+      {data.campaigns.map((campaign) => (
+        <View key={campaign.id} style={styles.editorCard}>
+          <Text style={styles.editorTitle}>{campaign.name}</Text>
+          <Text style={styles.pageSubtitle}>
+            {campaign.discountType === "Percentage" ? `%${campaign.discountValue}` : money.format(campaign.discountValue)}
+            {" · "}{money.format(campaign.minimumOrderAmount)} üzeri · {campaign.isActive ? "Aktif" : "Pasif"}
+          </Text>
+          <Text style={styles.pageSubtitle}>{new Date(campaign.startsAt).toLocaleDateString("tr-TR")} – {new Date(campaign.endsAt).toLocaleDateString("tr-TR")}</Text>
+          <View style={styles.editorActions}>
+            <Pressable onPress={() => remove(campaign)} style={styles.cancelButton}><Text style={styles.cancelButtonText}>Kaldır</Text></Pressable>
+            <Pressable onPress={() => openCampaign(campaign)} style={styles.saveButton}><Text style={styles.saveButtonText}>Düzenle</Text></Pressable>
+          </View>
+        </View>
+      ))}
     </>
   );
 }

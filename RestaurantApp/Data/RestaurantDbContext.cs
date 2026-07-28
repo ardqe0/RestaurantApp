@@ -37,6 +37,8 @@ public class RestaurantDbContext : IdentityDbContext<AppUser>
 
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
+    public DbSet<Campaign> Campaigns => Set<Campaign>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -78,6 +80,9 @@ public class RestaurantDbContext : IdentityDbContext<AppUser>
             entity.Property(order => order.Status).HasConversion<string>().HasMaxLength(30);
             entity.Property(order => order.RequestedPaymentMethod).HasConversion<string>().HasMaxLength(30);
             entity.Property(order => order.TotalAmount).HasPrecision(18, 2);
+            entity.Property(order => order.SubtotalAmount).HasPrecision(18, 2);
+            entity.Property(order => order.DiscountAmount).HasPrecision(18, 2);
+            entity.Property(order => order.CampaignName).HasMaxLength(150);
             entity.HasOne(order => order.Table)
                 .WithMany(table => table.Orders)
                 .HasForeignKey(order => order.TableId)
@@ -87,6 +92,10 @@ public class RestaurantDbContext : IdentityDbContext<AppUser>
                 .HasForeignKey(order => order.CustomerUserId)
                 .OnDelete(DeleteBehavior.SetNull);
             entity.HasIndex(order => new { order.CustomerUserId, order.CreatedAt });
+            entity.HasOne(order => order.Campaign)
+                .WithMany(campaign => campaign.Orders)
+                .HasForeignKey(order => order.CampaignId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<OrderReview>(entity =>
@@ -155,7 +164,20 @@ public class RestaurantDbContext : IdentityDbContext<AppUser>
             entity.Property(payment => payment.Amount).HasPrecision(18, 2);
             entity.Property(payment => payment.Method).HasConversion<string>().HasMaxLength(30);
             entity.Property(payment => payment.Status).HasConversion<string>().HasMaxLength(30);
-            entity.HasIndex(payment => payment.OrderId).IsUnique();
+            entity.HasIndex(payment => new { payment.OrderId, payment.Status });
+            entity.HasOne(payment => payment.Order)
+                .WithMany(order => order.Payments)
+                .HasForeignKey(payment => payment.OrderId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Campaign>(entity =>
+        {
+            entity.Property(campaign => campaign.Name).HasMaxLength(150).IsRequired();
+            entity.Property(campaign => campaign.DiscountType).HasConversion<string>().HasMaxLength(30);
+            entity.Property(campaign => campaign.DiscountValue).HasPrecision(18, 2);
+            entity.Property(campaign => campaign.MinimumOrderAmount).HasPrecision(18, 2);
+            entity.HasIndex(campaign => new { campaign.IsActive, campaign.StartsAt, campaign.EndsAt });
         });
 
         modelBuilder.Entity<DailySummary>(entity =>

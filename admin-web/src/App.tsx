@@ -3,22 +3,26 @@ import { HubConnectionBuilder, HubConnectionState, LogLevel } from "@microsoft/s
 import { FormEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ApiError,
+  createCampaign,
   createCategory,
   createMenuItem,
   createTable,
   deleteCategory,
+  deleteCampaign,
   deleteMenuItem,
   getAnalytics,
   getCurrentUser,
   getDashboardData,
   logout,
   updateCategory,
+  updateCampaign,
   updateMenuItem,
   updateOrderStatus,
   updateTable
 } from "./api";
 import type {
   AnalyticsData,
+  Campaign,
   Category,
   DashboardData,
   MenuItem,
@@ -82,6 +86,7 @@ sevenDaysAgo.setDate(today.getDate() - 6);
 type CategoryDraft = Omit<Category, "id"> & { id: number | null };
 type MenuItemDraft = Omit<MenuItem, "id"> & { id: number | null };
 type TableDraft = Omit<RestaurantTable, "id"> & { id: number | null };
+type CampaignDraft = Omit<Campaign, "id"> & { id: number | null };
 
 const emptyCategoryDraft: CategoryDraft = { id: null, name: "", displayOrder: 1, isActive: true };
 const emptyMenuItemDraft: MenuItemDraft = {
@@ -100,6 +105,20 @@ const emptyTableDraft: TableDraft = {
   qrCode: "",
   status: "Empty",
   capacity: 4
+};
+const campaignEnd = new Date(today);
+campaignEnd.setDate(campaignEnd.getDate() + 7);
+const dateTimeLocalValue = (value: Date) =>
+  new Date(value.getTime() - value.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+const emptyCampaignDraft: CampaignDraft = {
+  id: null,
+  name: "",
+  discountType: "Percentage",
+  discountValue: 10,
+  minimumOrderAmount: 0,
+  startsAt: dateTimeLocalValue(today),
+  endsAt: dateTimeLocalValue(campaignEnd),
+  isActive: true
 };
 
 const restaurantId = "lezzet-duragi";
@@ -152,6 +171,7 @@ export default function App() {
   const [categoryDraft, setCategoryDraft] = useState<CategoryDraft>(emptyCategoryDraft);
   const [menuItemDraft, setMenuItemDraft] = useState<MenuItemDraft>(emptyMenuItemDraft);
   const [tableDraft, setTableDraft] = useState<TableDraft>(emptyTableDraft);
+  const [campaignDraft, setCampaignDraft] = useState<CampaignDraft>(emptyCampaignDraft);
   const [customerQrAddress, setCustomerQrAddress] = useState(getInitialQrAddress);
   const [qrTable, setQrTable] = useState<RestaurantTable | null>(null);
   const qrCardRef = useRef<HTMLDivElement>(null);
@@ -255,6 +275,7 @@ export default function App() {
     connection.on("OrderStatusChanged", refreshFromEvent);
     connection.on("OrderItemStatusChanged", refreshFromEvent);
     connection.on("TableStatusChanged", refreshFromEvent);
+    connection.on("PaymentStatusChanged", refreshFromEvent);
     connection.onreconnecting(() => active && setRealtimeStatus("fallback"));
     connection.onreconnected(() => {
       if (!active) return;
@@ -285,6 +306,7 @@ export default function App() {
       connection.off("OrderStatusChanged", refreshFromEvent);
       connection.off("OrderItemStatusChanged", refreshFromEvent);
       connection.off("TableStatusChanged", refreshFromEvent);
+      connection.off("PaymentStatusChanged", refreshFromEvent);
       if (connection.state !== HubConnectionState.Disconnected) {
         void connection.stop();
       }
@@ -346,6 +368,24 @@ export default function App() {
       if (menuItemDraft.id === null) await createMenuItem(payload);
       else await updateMenuItem(menuItemDraft.id, payload);
       setMenuItemDraft({ ...emptyMenuItemDraft, categoryId: data?.categories[0]?.id ?? 0 });
+    });
+  };
+
+  const handleCampaignSubmit = (event: FormEvent) => {
+    event.preventDefault();
+    const payload = {
+      name: campaignDraft.name.trim(),
+      discountType: campaignDraft.discountType,
+      discountValue: campaignDraft.discountValue,
+      minimumOrderAmount: campaignDraft.minimumOrderAmount,
+      startsAt: new Date(campaignDraft.startsAt).toISOString(),
+      endsAt: new Date(campaignDraft.endsAt).toISOString(),
+      isActive: campaignDraft.isActive
+    };
+    void runAction("campaign-save", async () => {
+      if (campaignDraft.id === null) await createCampaign(payload);
+      else await updateCampaign(campaignDraft.id, payload);
+      setCampaignDraft(emptyCampaignDraft);
     });
   };
 
@@ -676,6 +716,47 @@ export default function App() {
                   </div>
                 </div>
               )}
+            </Section>
+
+            <Section title="Kampanya ve indirimler" description="Aktif tarih aralığında siparişe otomatik uygulanan indirimler">
+              <form className="editor-form campaign-form" onSubmit={handleCampaignSubmit}>
+                <label>Kampanya adı<input value={campaignDraft.name} onChange={event => setCampaignDraft({ ...campaignDraft, name: event.target.value })} required /></label>
+                <label>İndirim türü<select value={campaignDraft.discountType} onChange={event => setCampaignDraft({ ...campaignDraft, discountType: event.target.value as Campaign["discountType"] })}><option value="Percentage">Yüzde</option><option value="FixedAmount">Sabit tutar</option></select></label>
+                <label>İndirim değeri<input type="number" min="0.01" max={campaignDraft.discountType === "Percentage" ? 100 : undefined} step="0.01" value={campaignDraft.discountValue} onChange={event => setCampaignDraft({ ...campaignDraft, discountValue: Number(event.target.value) })} required /></label>
+                <label>Minimum sepet<input type="number" min="0" step="0.01" value={campaignDraft.minimumOrderAmount} onChange={event => setCampaignDraft({ ...campaignDraft, minimumOrderAmount: Number(event.target.value) })} required /></label>
+                <label>Başlangıç<input type="datetime-local" value={campaignDraft.startsAt.slice(0, 16)} onChange={event => setCampaignDraft({ ...campaignDraft, startsAt: event.target.value })} required /></label>
+                <label>Bitiş<input type="datetime-local" value={campaignDraft.endsAt.slice(0, 16)} onChange={event => setCampaignDraft({ ...campaignDraft, endsAt: event.target.value })} required /></label>
+                <label className="checkbox-label"><input type="checkbox" checked={campaignDraft.isActive} onChange={event => setCampaignDraft({ ...campaignDraft, isActive: event.target.checked })} /> Aktif</label>
+                <div className="form-actions">
+                  <button className="button primary" disabled={busyAction === "campaign-save"} type="submit">{campaignDraft.id === null ? "Kampanya ekle" : "Kampanyayı güncelle"}</button>
+                  {campaignDraft.id !== null && <button className="button secondary" type="button" onClick={() => setCampaignDraft(emptyCampaignDraft)}>İptal</button>}
+                </div>
+              </form>
+              <div className="entity-list campaign-list">
+                {data.campaigns.length === 0 ? <EmptyState>Henüz kampanya oluşturulmadı.</EmptyState> : data.campaigns.map(campaign => (
+                  <div className="entity-row" key={campaign.id}>
+                    <div>
+                      <strong>{campaign.name}</strong>
+                      <small>
+                        {campaign.discountType === "Percentage" ? `%${campaign.discountValue}` : money.format(campaign.discountValue)}
+                        {" · "}{money.format(campaign.minimumOrderAmount)} üzeri
+                        {" · "}{new Date(campaign.startsAt).toLocaleDateString("tr-TR")}–{new Date(campaign.endsAt).toLocaleDateString("tr-TR")}
+                        {" · "}{campaign.isActive ? "Aktif" : "Pasif"}
+                      </small>
+                    </div>
+                    <div className="row-actions">
+                      <button className="icon-button edit" type="button" onClick={() => setCampaignDraft({
+                        ...campaign,
+                        startsAt: dateTimeLocalValue(new Date(campaign.startsAt)),
+                        endsAt: dateTimeLocalValue(new Date(campaign.endsAt))
+                      })}>Düzenle</button>
+                      <button className="icon-button danger" type="button" onClick={() => {
+                        if (window.confirm("Kampanya silinsin mi? Kullanılmış kampanyalar pasife alınır.")) void runAction(`campaign-delete-${campaign.id}`, () => deleteCampaign(campaign.id));
+                      }}>Sil</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </Section>
 
             <Section title="Menü yönetimi" description="Kategori ve ürün işlemleri">

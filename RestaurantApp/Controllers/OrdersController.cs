@@ -124,7 +124,29 @@ public class OrdersController : ControllerBase
             });
         }
 
-        order.TotalAmount = order.Items.Sum(item => item.Quantity * item.UnitPrice);
+        order.SubtotalAmount = order.Items.Sum(item => item.Quantity * item.UnitPrice);
+        var activeCampaigns = await _dbContext.Campaigns
+            .AsNoTracking()
+            .Where(campaign =>
+                campaign.IsActive
+                && campaign.StartsAt <= now
+                && campaign.EndsAt >= now
+                && order.SubtotalAmount >= campaign.MinimumOrderAmount)
+            .ToListAsync();
+        var appliedCampaign = activeCampaigns
+            .Select(campaign => new
+            {
+                Campaign = campaign,
+                Discount = CalculateDiscount(campaign, order.SubtotalAmount)
+            })
+            .OrderByDescending(item => item.Discount)
+            .ThenBy(item => item.Campaign.EndsAt)
+            .FirstOrDefault();
+
+        order.DiscountAmount = appliedCampaign?.Discount ?? 0;
+        order.TotalAmount = order.SubtotalAmount - order.DiscountAmount;
+        order.CampaignId = appliedCampaign?.Campaign.Id;
+        order.CampaignName = appliedCampaign?.Campaign.Name;
 
         var tableClaimed = false;
         var executionStrategy = _dbContext.Database.CreateExecutionStrategy();
@@ -197,6 +219,7 @@ public class OrdersController : ControllerBase
 
         var order = await _dbContext.Orders
             .Include(order => order.Table)
+            .Include(order => order.Payments)
             .FirstOrDefaultAsync(order => order.Id == id && order.CustomerUserId == customerUserId);
 
         if (order is null || order.Table is null)
@@ -219,9 +242,28 @@ public class OrdersController : ControllerBase
             return BadRequest("Bu sipariş için hesap isteği zaten gönderildi.");
         }
 
+        if (order.Payments.Count != 0)
+        {
+            return BadRequest("Bu sipariş için ödeme planı zaten oluşturuldu.");
+        }
+
         order.Table.Status = TableStatus.WaitingForPayment;
         order.RequestedPaymentMethod = request.Method;
         order.UpdatedAt = DateTime.UtcNow;
+        var splitCount = request.SplitCount;
+        var totalCents = decimal.ToInt32(decimal.Round(order.TotalAmount * 100, 0, MidpointRounding.AwayFromZero));
+        var baseCents = totalCents / splitCount;
+        var remainderCents = totalCents % splitCount;
+        for (var index = 0; index < splitCount; index++)
+        {
+            order.Payments.Add(new Payment
+            {
+                Amount = (baseCents + (index < remainderCents ? 1 : 0)) / 100m,
+                Method = request.Method,
+                Status = PaymentStatus.Pending,
+                CreatedAt = DateTime.UtcNow
+            });
+        }
         await _dbContext.SaveChangesAsync();
 
         await _hubContext.SendToOperationsAsync("TableStatusChanged", new TableStatusChangedEvent(
@@ -256,7 +298,26 @@ public class OrdersController : ControllerBase
                     item.UnitPrice,
                     item.Note,
                     item.Status)).ToList(),
-                null))
+                null,
+                order.SubtotalAmount,
+                order.DiscountAmount,
+                order.CampaignName,
+                order.Payments.OrderBy(payment => payment.Id).Select(payment => new PaymentDto(
+                    payment.Id,
+                    payment.OrderId,
+                    payment.Amount,
+                    payment.Method,
+                    payment.Status,
+                    payment.CreatedAt,
+                    payment.CompletedAt)).ToList()))
             .FirstOrDefaultAsync();
+    }
+
+    private static decimal CalculateDiscount(Campaign campaign, decimal subtotal)
+    {
+        var discount = campaign.DiscountType == CampaignDiscountType.Percentage
+            ? decimal.Round(subtotal * campaign.DiscountValue / 100m, 2, MidpointRounding.AwayFromZero)
+            : campaign.DiscountValue;
+        return Math.Clamp(discount, 0, subtotal);
     }
 }

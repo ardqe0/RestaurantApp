@@ -22,7 +22,7 @@ import {
   updateItemStatus
 } from "./kitchenApi";
 import { showKitchenAlertNotification } from "./notifications";
-import type { OrderDto, OrderItemDto, OrderItemStatus, PaymentMethod, WaiterCallDto } from "./types";
+import type { OrderDto, OrderItemDto, OrderItemStatus, PaymentDto, PaymentMethod, WaiterCallDto } from "./types";
 
 const overdueWarningMinutes = 15;
 const criticalWarningMinutes = 20;
@@ -138,6 +138,7 @@ export function KitchenScreen({ apiBaseUrl, username, onLogout }: KitchenScreenP
         nextConnection.on("OrderStatusChanged", refreshFromEvent);
         nextConnection.on("OrderItemStatusChanged", refreshFromEvent);
         nextConnection.on("TableStatusChanged", refreshFromEvent);
+        nextConnection.on("PaymentStatusChanged", refreshFromEvent);
         nextConnection.on("WaiterCallCreated", refreshFromEvent);
         nextConnection.on("WaiterCallResolved", refreshFromEvent);
         await nextConnection.start();
@@ -156,6 +157,7 @@ export function KitchenScreen({ apiBaseUrl, username, onLogout }: KitchenScreenP
       connection?.off("OrderStatusChanged", refreshFromEvent);
       connection?.off("OrderItemStatusChanged", refreshFromEvent);
       connection?.off("TableStatusChanged", refreshFromEvent);
+      connection?.off("PaymentStatusChanged", refreshFromEvent);
       connection?.off("WaiterCallCreated", refreshFromEvent);
       connection?.off("WaiterCallResolved", refreshFromEvent);
       if (connection && connection.state !== HubConnectionState.Disconnected) void connection.stop();
@@ -190,10 +192,10 @@ export function KitchenScreen({ apiBaseUrl, username, onLogout }: KitchenScreenP
     }
   }
 
-  async function takePayment(orderId: number, method: PaymentMethod) {
+  async function takePayment(orderId: number, method: PaymentMethod, paymentId?: number) {
     setPayingOrderId(orderId);
     try {
-      await createPayment(apiBaseUrl, orderId, method);
+      await createPayment(apiBaseUrl, orderId, method, paymentId);
       await loadOrders(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ödeme alınamadı.");
@@ -353,6 +355,7 @@ export function KitchenScreen({ apiBaseUrl, username, onLogout }: KitchenScreenP
               <PaymentActions
                 orderId={order.id}
                 method={order.requestedPaymentMethod}
+                payments={order.payments ?? []}
                 isPaying={payingOrderId === order.id}
                 onPayment={takePayment}
               />
@@ -457,25 +460,36 @@ function OrderItemRow({
 function PaymentActions({
   orderId,
   method,
+  payments,
   isPaying,
   onPayment
 }: {
   orderId: number;
   method: PaymentMethod;
+  payments: PaymentDto[];
   isPaying: boolean;
-  onPayment: (orderId: number, method: PaymentMethod) => Promise<void>;
+  onPayment: (orderId: number, method: PaymentMethod, paymentId?: number) => Promise<void>;
 }) {
   return (
     <View style={styles.paymentPanel}>
       <Text style={styles.paymentTitle}>Müşterinin seçtiği ödeme yöntemi: {paymentMethodText(method)}</Text>
-      <Text style={styles.paymentHint}>Ödeme tamamlanınca masa boşalır ve sipariş bu ekrandan kalkar.</Text>
-      <Pressable
-        disabled={isPaying}
-        onPress={() => void onPayment(orderId, method)}
-        style={[styles.paymentButton, isPaying ? styles.disabled : null]}
-      >
-        <Text style={styles.paymentButtonText}>{isPaying ? "İşleniyor…" : "Müşteriden ödeme alındı"}</Text>
-      </Pressable>
+      <Text style={styles.paymentHint}>{payments.length > 1 ? `Adisyon ${payments.length} parçaya bölündü.` : "Tek adisyon"} · Tüm parçalar ödenince masa boşalır.</Text>
+      {(payments.length ? payments : [{ id: 0, amount: 0, status: "Pending", method } as PaymentDto]).map((payment, index) => (
+        <Pressable
+          key={payment.id || index}
+          disabled={isPaying || payment.status === "Completed"}
+          onPress={() => void onPayment(orderId, payment.method, payment.id || undefined)}
+          style={[styles.paymentButton, (isPaying || payment.status === "Completed") ? styles.disabled : null]}
+        >
+          <Text style={styles.paymentButtonText}>
+            {payment.status === "Completed"
+              ? `${index + 1}. parça ödendi`
+              : isPaying
+                ? "İşleniyor…"
+                : `${payments.length > 1 ? `${index + 1}. parça · ${payment.amount.toFixed(2)} TL` : "Müşteriden ödeme alındı"}`}
+          </Text>
+        </Pressable>
+      ))}
     </View>
   );
 }

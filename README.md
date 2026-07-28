@@ -30,6 +30,7 @@ uygulaması olarak da derlenebilir.
 - Sepet ve masadan sipariş oluşturma
 - Sipariş durumunu gerçek zamanlı takip etme
 - Hesap isteme ve ödeme yöntemi seçme
+- Adisyonu eşit parçalara bölme ve parça ödeme durumlarını takip etme
 - Geçmiş siparişleri görüntüleme
 - Ürünleri favorilere ekleme
 - Tamamlanan siparişlere puan ve yorum bırakma
@@ -50,6 +51,7 @@ uygulaması olarak da derlenebilir.
 ### Yönetici
 
 - Kategori ve menü ürünü CRUD işlemleri
+- Tarihli yüzde veya sabit tutarlı kampanya ve indirim yönetimi
 - Ürün fiyatı, görseli, satış durumu ve sıralamasını yönetme
 - Masa oluşturma, düzenleme ve QR kod üretme
 - Aktif ve geçmiş siparişleri inceleme

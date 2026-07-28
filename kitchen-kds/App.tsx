@@ -22,7 +22,7 @@ import {
   signOut,
   updateItemStatus
 } from "./src/api";
-import type { OrderDto, OrderItemDto, OrderItemStatus, PaymentMethod, WaiterCallDto } from "./src/types";
+import type { OrderDto, OrderItemDto, OrderItemStatus, PaymentDto, PaymentMethod, WaiterCallDto } from "./src/types";
 
 const overdueWarningMinutes = 15;
 const criticalWarningMinutes = 20;
@@ -142,6 +142,7 @@ export default function App() {
     connection.on("NewOrder", refreshFromEvent);
     connection.on("OrderStatusChanged", refreshFromEvent);
     connection.on("OrderItemStatusChanged", refreshFromEvent);
+    connection.on("PaymentStatusChanged", refreshFromEvent);
     connection.on("WaiterCallCreated", refreshFromEvent);
     connection.on("WaiterCallResolved", refreshFromEvent);
 
@@ -155,6 +156,7 @@ export default function App() {
       connection.off("NewOrder", refreshFromEvent);
       connection.off("OrderStatusChanged", refreshFromEvent);
       connection.off("OrderItemStatusChanged", refreshFromEvent);
+      connection.off("PaymentStatusChanged", refreshFromEvent);
       connection.off("WaiterCallCreated", refreshFromEvent);
       connection.off("WaiterCallResolved", refreshFromEvent);
       if (connection.state !== HubConnectionState.Disconnected) {
@@ -183,10 +185,10 @@ export default function App() {
     }
   }
 
-  async function takePayment(orderId: number, method: PaymentMethod) {
+  async function takePayment(orderId: number, method: PaymentMethod, paymentId?: number) {
     setPayingOrderId(orderId);
     try {
-      await createPayment(apiBaseUrl.trim(), orderId, method);
+      await createPayment(apiBaseUrl.trim(), orderId, method, paymentId);
       await loadOrders(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ödeme alınamadı.");
@@ -379,7 +381,7 @@ export default function App() {
               <OrderItemRow key={item.id} item={item} isUpdating={updatingItemId === item.id} onUpdate={changeItemStatus} />
             ))}
             {order.status === "Ready" && order.tableStatus === "WaitingForPayment" && order.requestedPaymentMethod ? (
-              <PaymentActions orderId={order.id} method={order.requestedPaymentMethod} isPaying={payingOrderId === order.id} onPayment={takePayment} />
+              <PaymentActions orderId={order.id} method={order.requestedPaymentMethod} payments={order.payments ?? []} isPaying={payingOrderId === order.id} onPayment={takePayment} />
             ) : null}
             <Pressable onPress={() => { setCancellingOrderId(order.id); setCancellationReason(""); }} style={styles.cancelOrderButton}>
               <Text style={styles.cancelOrderButtonText}>Siparişi iptal et</Text>
@@ -439,21 +441,31 @@ function OrderItemRow({ item, isUpdating, onUpdate }: { item: OrderItemDto; isUp
   );
 }
 
-function PaymentActions({ orderId, method, isPaying, onPayment }: { orderId: number; method: PaymentMethod; isPaying: boolean; onPayment: (orderId: number, method: PaymentMethod) => Promise<void> }) {
+function PaymentActions({ orderId, method, payments, isPaying, onPayment }: { orderId: number; method: PaymentMethod; payments: PaymentDto[]; isPaying: boolean; onPayment: (orderId: number, method: PaymentMethod, paymentId?: number) => Promise<void> }) {
   return (
     <View style={styles.paymentPanel}>
       <Text style={styles.paymentTitle}>Müşterinin seçtiği ödeme yöntemi: {paymentMethodText(method)}</Text>
-      <Text style={styles.paymentHint}>Ödeme tamamlanınca masa boşalır ve sipariş bu ekrandan kalkar.</Text>
+      <Text style={styles.paymentHint}>{payments.length > 1 ? `Adisyon ${payments.length} parçaya bölündü.` : "Tek adisyon"} · Tüm parçalar ödenince masa boşalır.</Text>
       <View style={styles.paymentActions}>
-        <PaymentButton label="Müşteriden ödeme alındı" method={method} disabled={isPaying} orderId={orderId} onPayment={onPayment} />
+        {(payments.length ? payments : [{ id: 0, amount: 0, status: "Pending", method } as PaymentDto]).map((payment, index) => (
+          <PaymentButton
+            key={payment.id || index}
+            label={payment.status === "Completed" ? `${index + 1}. parça ödendi` : payments.length > 1 ? `${index + 1}. parça · ${payment.amount.toFixed(2)} TL` : "Müşteriden ödeme alındı"}
+            method={payment.method}
+            paymentId={payment.id || undefined}
+            disabled={isPaying || payment.status === "Completed"}
+            orderId={orderId}
+            onPayment={onPayment}
+          />
+        ))}
       </View>
     </View>
   );
 }
 
-function PaymentButton({ label, method, disabled, orderId, onPayment }: { label: string; method: PaymentMethod; disabled: boolean; orderId: number; onPayment: (orderId: number, method: PaymentMethod) => Promise<void> }) {
+function PaymentButton({ label, method, paymentId, disabled, orderId, onPayment }: { label: string; method: PaymentMethod; paymentId?: number; disabled: boolean; orderId: number; onPayment: (orderId: number, method: PaymentMethod, paymentId?: number) => Promise<void> }) {
   return (
-    <Pressable disabled={disabled} onPress={() => void onPayment(orderId, method)} style={[styles.paymentButton, disabled ? styles.disabled : null]}>
+    <Pressable disabled={disabled} onPress={() => void onPayment(orderId, method, paymentId)} style={[styles.paymentButton, disabled ? styles.disabled : null]}>
       <Text style={styles.paymentButtonText}>{disabled ? "..." : label}</Text>
     </Pressable>
   );
