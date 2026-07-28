@@ -12,7 +12,7 @@ jobs:
 
     steps:
       - name: Kodu al
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: .NET 8'i kur
         uses: actions/setup-dotnet@v4
