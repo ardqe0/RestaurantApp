@@ -24,7 +24,7 @@
   "devDependencies": {
     "@react-native/assets-registry": "0.74.87",
     "@types/react": "~18.2.79",
-    "babel-preset-expo": "~11.0.15",
+    "babel-preset-expo": "~57.0.4",
     "typescript": "~5.3.3"
   }
 }
