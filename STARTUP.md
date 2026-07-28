@@ -10,14 +10,14 @@ değiştirin. Gerçek anahtar ve şifrelerin bulunduğu dosya Git tarafından iz
 Veritabanını hazırlayın:
 
 ```powershell
-cd C:\Users\example\source\repos\RestaurantApp\RestaurantApp
+cd C:\path\to\RestaurantApp\RestaurantApp
 dotnet ef database update
 ```
 
 Tek portta API, müşteri ve mutfak uygulamasını başlatmak için kök klasörde:
 
 ```powershell
-cd C:\Users\example\source\repos\RestaurantApp
+cd C:\path\to\RestaurantApp
 .\start-all.cmd
 ```
 
@@ -37,9 +37,9 @@ Yeni bir veritabanında mutfak veya yönetici hesabını otomatik oluşturmak i�
 
 ```powershell
 $env:BootstrapUsers__Kitchen__Username="mutfak-kullanici-adi"
-$env:BootstrapUsers__Kitchen__Password="guclu-bir-sifre"
+$env:BootstrapUsers__Kitchen__Password="Guclu-Bir-Sifre-123!"
 $env:BootstrapUsers__Admin__Username="yonetici-kullanici-adi"
-$env:BootstrapUsers__Admin__Password="guclu-bir-sifre"
+$env:BootstrapUsers__Admin__Password="Guclu-Bir-Sifre-123!"
 ```
 
 Bu bilgiler kaynak kodda veya giriş ekranında gösterilmez.
@@ -53,7 +53,7 @@ Yönetim panelinin kaynak kodu `admin-web` klasöründedir. React kodunda deği�
 yaptıktan sonra yeni üretim dosyalarını ASP.NET projesine almak için:
 
 ```powershell
-cd C:\Users\example\source\repos\RestaurantApp\admin-web
+cd C:\path\to\RestaurantApp\admin-web
 pnpm install
 pnpm run build
 ```
@@ -63,9 +63,9 @@ Derleme sonucu otomatik olarak `RestaurantApp\wwwroot\admin` klasörüne yazıl�
 Müşteri ve mutfak web çıktıları için sırasıyla:
 
 ```powershell
-cd C:\Users\example\source\repos\RestaurantApp\customer-mobile
+cd C:\path\to\RestaurantApp\customer-mobile
 .\pnpm-local.cmd run build:web
 
-cd C:\Users\example\source\repos\RestaurantApp\kitchen-kds
+cd C:\path\to\RestaurantApp\kitchen-kds
 ..\customer-mobile\pnpm-local.cmd run build:web
 ```

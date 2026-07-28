@@ -57,8 +57,12 @@ export function AuthScreen({
       setError("Telefon numarası 10 ile 15 rakam arasında olmalıdır.");
       return;
     }
-    if (password.length < 6) {
-      setError("Şifre en az 6 karakter olmalıdır.");
+    if (mode === "login" && password.length < 6) {
+      setError("Şifrenizi girin.");
+      return;
+    }
+    if (mode === "register" && !isStrongPassword(password)) {
+      setError("Şifre en az 8 karakter; büyük harf, küçük harf, rakam ve özel karakter içermelidir.");
       return;
     }
 
@@ -194,6 +198,14 @@ export function AuthScreen({
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
+}
+
+function isStrongPassword(password: string) {
+  return password.length >= 8
+    && /[A-Z]/.test(password)
+    && /[a-z]/.test(password)
+    && /\d/.test(password)
+    && /[^A-Za-z0-9]/.test(password);
 }
 
 export function LoadingScreen() {

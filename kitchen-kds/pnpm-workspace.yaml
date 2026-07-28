@@ -1,0 +1,11 @@
+packages:
+  - .
+
+overrides:
+  "@xmldom/xmldom@<0.8.13": 0.8.13
+  "brace-expansion@<=5.0.7": 5.0.8
+  "fast-xml-parser@<5.7.0": 5.7.0
+  "postcss@<=8.5.17": 8.5.18
+  "send@<0.19.0": 0.19.0
+  "tar@<=7.5.20": 7.5.21
+  "uuid@<11.1.1": 11.1.1

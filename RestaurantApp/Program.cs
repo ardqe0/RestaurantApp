@@ -78,11 +78,12 @@ builder.Services.AddDbContext<RestaurantDbContext>(options =>
             errorNumbersToAdd: null)));
 builder.Services.AddIdentityCore<AppUser>(options =>
     {
-        options.Password.RequiredLength = 6;
-        options.Password.RequireDigit = false;
-        options.Password.RequireNonAlphanumeric = false;
-        options.Password.RequireUppercase = false;
-        options.Password.RequireLowercase = false;
+        options.Password.RequiredLength = 8;
+        options.Password.RequireDigit = true;
+        options.Password.RequireNonAlphanumeric = true;
+        options.Password.RequireUppercase = true;
+        options.Password.RequireLowercase = true;
+        options.Password.RequiredUniqueChars = 4;
     })
     .AddRoles<IdentityRole>()
     .AddErrorDescriber<TurkishIdentityErrorDescriber>()
@@ -205,6 +206,12 @@ if (!app.Environment.IsDevelopment())
 
 app.Use(async (context, next) =>
 {
+    if (context.Request.Path.StartsWithSegments("/api/auth"))
+    {
+        context.Response.Headers.CacheControl = "no-store";
+        context.Response.Headers.Pragma = "no-cache";
+    }
+
     context.Response.Headers.Append("X-Content-Type-Options", "nosniff");
     context.Response.Headers.Append("X-Frame-Options", "DENY");
     context.Response.Headers.Append("Referrer-Policy", "strict-origin-when-cross-origin");

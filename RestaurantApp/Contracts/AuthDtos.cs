@@ -4,7 +4,7 @@ namespace RestaurantApp.Contracts;
 
 public record RegisterRequest(
     [Required, StringLength(50, MinimumLength = 3)] string Username,
-    [Required, StringLength(100, MinimumLength = 6)] string Password,
+    [Required, StringLength(100, MinimumLength = 8)] string Password,
     [EmailAddress, StringLength(256)] string? Email,
     [StringLength(30)] string? PhoneNumber);
 
@@ -18,7 +18,7 @@ public record UpdateProfileRequest(
 
 public record ChangePasswordRequest(
     [Required, StringLength(100)] string CurrentPassword,
-    [Required, StringLength(100, MinimumLength = 6)] string NewPassword);
+    [Required, StringLength(100, MinimumLength = 8)] string NewPassword);
 
 public record AuthResponse(string Username, string Role, string? Email, string? PhoneNumber);
 
