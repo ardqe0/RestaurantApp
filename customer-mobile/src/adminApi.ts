@@ -1,4 +1,5 @@
 import { getAuthorizationHeaders } from "./auth";
+import { ApiError, fetchApi, readApiError } from "./http";
 import type {
   AdminAnalyticsDto,
   AdminCategoryDto,
@@ -13,22 +14,9 @@ import type {
   TableDto
 } from "./types";
 
-async function readError(response: Response) {
-  const body = await response.text();
-  if (!body) return `İstek başarısız oldu: ${response.status}`;
-
-  try {
-    const parsed = JSON.parse(body) as string | { detail?: string; title?: string };
-    if (typeof parsed === "string") return parsed;
-    return parsed.detail ?? parsed.title ?? body;
-  } catch {
-    return body;
-  }
-}
-
 async function request<T>(baseUrl: string, path: string, init?: RequestInit): Promise<T> {
   const authorizationHeaders = await getAuthorizationHeaders();
-  const response = await fetch(`${baseUrl}${path}`, {
+  const response = await fetchApi(`${baseUrl}${path}`, {
     credentials: "include",
     ...init,
     headers: {
@@ -38,7 +26,7 @@ async function request<T>(baseUrl: string, path: string, init?: RequestInit): Pr
     }
   });
 
-  if (!response.ok) throw new Error(await readError(response));
+  if (!response.ok) throw new ApiError(await readApiError(response), response.status);
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 }

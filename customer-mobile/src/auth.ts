@@ -1,5 +1,6 @@
 import { Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
+import { ApiError, fetchApi, readApiError } from "./http";
 
 export type AuthRole = "Customer" | "Kitchen" | "Admin";
 
@@ -16,26 +17,9 @@ type NativeAuthResponse = AuthSession & {
 
 const tokenStorageKey = "restaurant_auth_token";
 
-async function readError(response: Response) {
-  const body = await response.text();
-  if (!body) return `İstek başarısız oldu: ${response.status}`;
-
-  try {
-    const parsed = JSON.parse(body) as string | { title?: string; detail?: string; errors?: Record<string, string[]> };
-    if (typeof parsed === "string") return parsed;
-    if (parsed.detail) return parsed.detail;
-    if (parsed.errors) return Object.values(parsed.errors).flat().join(" ");
-    if (parsed.title) return parsed.title;
-  } catch {
-    // Sunucu düz metin döndürdüyse olduğu gibi gösterilir.
-  }
-
-  return body;
-}
-
 async function request<T>(baseUrl: string, path: string, options?: RequestInit): Promise<T> {
   const token = await getAccessToken();
-  const response = await fetch(`${baseUrl}${path}`, {
+  const response = await fetchApi(`${baseUrl}${path}`, {
     credentials: "include",
     ...options,
     headers: {
@@ -45,7 +29,7 @@ async function request<T>(baseUrl: string, path: string, options?: RequestInit):
     }
   });
 
-  if (!response.ok) throw new Error(await readError(response));
+  if (!response.ok) throw new ApiError(await readApiError(response), response.status);
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 }
@@ -65,8 +49,12 @@ export async function restoreSession(baseUrl: string): Promise<AuthSession | nul
 
   try {
     return await request<AuthSession>(baseUrl, "/api/auth/me");
-  } catch {
-    if (Platform.OS !== "web") await SecureStore.deleteItemAsync(tokenStorageKey);
+  } catch (error) {
+    if (Platform.OS !== "web"
+      && error instanceof ApiError
+      && (error.status === 401 || error.status === 403)) {
+      await SecureStore.deleteItemAsync(tokenStorageKey);
+    }
     return null;
   }
 }

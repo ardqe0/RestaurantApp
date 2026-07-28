@@ -118,6 +118,7 @@ RestaurantApp/
 ├── kitchen-kds/         # Ayrı mutfak ekranı istemcisi
 ├── Dockerfile           # Uygulama image tanımı
 ├── compose.yaml         # Uygulama ve SQL Server servisleri
+├── GELISTIRME_NOTLARI.md # Tamamlanan ve planlanan küçük iyileştirmeler
 ├── STARTUP.md           # Ayrıntılı yerel çalıştırma notları
 └── start-all.cmd        # Web uygulamalarını tek portta başlatır
 ```
@@ -167,6 +168,8 @@ Varsayılan yerel adresler:
 | Mutfak | `http://localhost:5223/kitchen` |
 | Yönetim | `http://localhost:5223/admin/` |
 | Swagger | `http://localhost:5223/swagger` |
+| Uygulama sağlık kontrolü | `http://localhost:5223/health/live` |
+| Veritabanı sağlık kontrolü | `http://localhost:5223/health/ready` |
 
 Yeni kayıt olan kullanıcılar otomatik olarak `Customer` rolünü alır. `Kitchen`
 ve `Admin` hesapları yalnızca güvenli başlangıç yapılandırmasıyla oluşturulur.
@@ -182,7 +185,8 @@ dotnet test .\RestaurantApp.Tests\RestaurantApp.Tests.csproj -c Release
 ```
 
 GitHub Actions, `main` dalına gönderilen her değişiklikte ve pull requestlerde
-backend testlerini ve React yönetim paneli derlemesini otomatik çalıştırır.
+backend testlerini; admin, müşteri ve mutfak TypeScript kontrollerini; üretim
+derlemelerini ve yüksek önem seviyeli paket güvenlik denetimlerini çalıştırır.
 
 ## Docker ile çalıştırma
 

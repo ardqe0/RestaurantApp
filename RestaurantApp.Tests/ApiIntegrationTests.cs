@@ -248,6 +248,20 @@ public sealed class ApiIntegrationTests : IClassFixture<RestaurantAppFactory>, I
         });
     }
 
+    [Theory]
+    [InlineData("/health/live")]
+    [InlineData("/health/ready")]
+    public async Task HealthEndpoints_AreAnonymousAndIncludeRequestId(string path)
+    {
+        using var client = _factory.CreateClient();
+
+        var response = await client.GetAsync(path);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.True(response.Headers.Contains("X-Request-ID"));
+        Assert.Equal("Healthy", await response.Content.ReadAsStringAsync());
+    }
+
     private async Task<HttpClient> CreateAuthenticatedClientAsync(string username)
     {
         var client = _factory.CreateClient();

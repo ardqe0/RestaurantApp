@@ -4,15 +4,48 @@ import type { OrderDto, OrderItemStatus, PaymentMethod, WaiterCallDto } from "./
 export const defaultApiBaseUrl = Platform.OS === "web" && typeof window !== "undefined" ? window.location.origin : "http://10.0.2.2:5223";
 
 async function request<T>(baseUrl: string, path: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(`${baseUrl}${path}`, {
-    credentials: "include",
-    headers: { "Content-Type": "application/json", ...options?.headers },
-    ...options
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15_000);
+  let response: Response;
+
+  try {
+    response = await fetch(`${baseUrl}${path}`, {
+      credentials: "include",
+      ...options,
+      signal: controller.signal,
+      headers: { "Content-Type": "application/json", ...options?.headers }
+    });
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw new Error("Sunucu 15 saniye içinde yanıt vermedi. Bağlantınızı kontrol edip tekrar deneyin.");
+    }
+    if (error instanceof TypeError || (error instanceof Error && /failed to fetch|network request failed/i.test(error.message))) {
+      throw new Error("Sunucuya ulaşılamadı. İnternet bağlantınızı ve sunucu adresini kontrol edin.");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
 
   if (!response.ok) {
-    const message = await response.text();
-    throw new Error(message || `İstek başarısız oldu: ${response.status}`);
+    const body = await response.text().catch(() => "");
+    let message = "";
+    try {
+      const parsed = JSON.parse(body) as { detail?: string; title?: string };
+      message = parsed.detail ?? parsed.title ?? "";
+    } catch {
+      if (body.length <= 300 && !/<html|<!doctype/i.test(body)) message = body;
+    }
+    const fallback = response.status === 401
+      ? "Oturumunuz sona erdi. Lütfen tekrar giriş yapın."
+      : response.status === 403
+        ? "Bu işlem için yetkiniz yok."
+        : response.status === 429
+          ? "Çok fazla istek gönderildi. Lütfen kısa süre sonra tekrar deneyin."
+          : response.status >= 500
+            ? "Sunucuda geçici bir sorun oluştu. Lütfen tekrar deneyin."
+            : `İstek başarısız oldu: ${response.status}`;
+    throw new Error(message || fallback);
   }
 
   if (response.status === 204) return undefined as T;
