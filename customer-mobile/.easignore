@@ -5,3 +5,5 @@ dist/
 *.log
 expo.log
 expo.err.log
+.env*
+!.env.example
