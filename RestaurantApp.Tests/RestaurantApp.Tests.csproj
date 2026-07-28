@@ -10,7 +10,7 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="8.0.29" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="8.0.29" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.18" />
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.12" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
     <PackageReference Include="coverlet.collector" Version="6.0.2">
