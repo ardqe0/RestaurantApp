@@ -1,0 +1,62 @@
+name: restaurant-automation
+
+services:
+  database:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Developer
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?MSSQL_SA_PASSWORD must be set}
+    volumes:
+      - sqlserver-data:/var/opt/mssql
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa
+          -P "$$MSSQL_SA_PASSWORD" -C -Q "SELECT 1" ||
+          /opt/mssql-tools/bin/sqlcmd -S localhost -U sa
+          -P "$$MSSQL_SA_PASSWORD" -Q "SELECT 1"
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    restart: unless-stopped
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      AllowedHosts: ${ALLOWED_HOSTS:-localhost;127.0.0.1}
+      ConnectionStrings__DefaultConnection: >-
+        Server=database,1433;Database=RestaurantAppDb;User Id=sa;
+        Password=${MSSQL_SA_PASSWORD};Encrypt=True;TrustServerCertificate=True
+      Jwt__Key: ${JWT_KEY:?JWT_KEY must be set}
+      Jwt__Issuer: RestaurantApp
+      Jwt__Audience: RestaurantAppClients
+      Database__ApplyMigrationsOnStartup: "true"
+      Security__UseHttpsRedirection: "false"
+      BootstrapUsers__Admin__Username: ${BOOTSTRAP_ADMIN_USERNAME:-}
+      BootstrapUsers__Admin__Password: ${BOOTSTRAP_ADMIN_PASSWORD:-}
+      BootstrapUsers__Kitchen__Username: ${BOOTSTRAP_KITCHEN_USERNAME:-}
+      BootstrapUsers__Kitchen__Password: ${BOOTSTRAP_KITCHEN_PASSWORD:-}
+    depends_on:
+      database:
+        condition: service_healthy
+    init: true
+    ports:
+      - "${APP_PORT:-5223}:8080"
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: unless-stopped
+
+volumes:
+  sqlserver-data:

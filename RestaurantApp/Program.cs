@@ -69,7 +69,12 @@ builder.Services.AddControllers()
         options.JsonSerializerOptions.Converters.Add(new UtcDateTimeJsonConverter());
     });
 builder.Services.AddDbContext<RestaurantDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseSqlServer(
+        builder.Configuration.GetConnectionString("DefaultConnection"),
+        sqlOptions => sqlOptions.EnableRetryOnFailure(
+            maxRetryCount: 5,
+            maxRetryDelay: TimeSpan.FromSeconds(10),
+            errorNumbersToAdd: null)));
 builder.Services.AddIdentityCore<AppUser>(options =>
     {
         options.Password.RequiredLength = 6;
@@ -161,6 +166,12 @@ var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
 {
+    if (builder.Configuration.GetValue("Database:ApplyMigrationsOnStartup", true))
+    {
+        var dbContext = scope.ServiceProvider.GetRequiredService<RestaurantDbContext>();
+        await dbContext.Database.MigrateAsync();
+    }
+
     await AuthSeeder.InitializeAsync(scope.ServiceProvider, builder.Configuration);
 }
 
@@ -176,7 +187,10 @@ if (app.Environment.IsDevelopment())
 if (!app.Environment.IsDevelopment())
 {
     app.UseHsts();
-    app.UseHttpsRedirection();
+    if (builder.Configuration.GetValue("Security:UseHttpsRedirection", true))
+    {
+        app.UseHttpsRedirection();
+    }
 }
 
 app.Use(async (context, next) =>

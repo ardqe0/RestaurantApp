@@ -112,6 +112,8 @@ RestaurantApp/
 ├── admin-web/           # React yönetim paneli
 ├── customer-mobile/     # Expo müşteri, mutfak ve mobil yönetim uygulaması
 ├── kitchen-kds/         # Ayrı mutfak ekranı istemcisi
+├── Dockerfile           # Uygulama image tanımı
+├── compose.yaml         # Uygulama ve SQL Server servisleri
 ├── STARTUP.md           # Ayrıntılı yerel çalıştırma notları
 └── start-all.cmd        # Web uygulamalarını tek portta başlatır
 ```
@@ -164,6 +166,65 @@ Varsayılan yerel adresler:
 
 Yeni kayıt olan kullanıcılar otomatik olarak `Customer` rolünü alır. `Kitchen`
 ve `Admin` hesapları yalnızca güvenli başlangıç yapılandırmasıyla oluşturulur.
+
+## Docker ile çalıştırma
+
+Docker Compose; ASP.NET Core uygulamasını ve kalıcı veri diski kullanan SQL Server
+2022 veritabanını birlikte başlatır. Migrationlar uygulama açılırken otomatik
+uygulanır.
+
+### 1. Ortam dosyasını hazırlayın
+
+```powershell
+Copy-Item .\.env.docker.example .\.env
+```
+
+`.env` içindeki SQL Server parolasını ve JWT anahtarını mutlaka değiştirin.
+Rastgele bir JWT anahtarı üretmek için:
+
+```powershell
+$bytes = New-Object byte[] 48
+[Security.Cryptography.RandomNumberGenerator]::Fill($bytes)
+[Convert]::ToBase64String($bytes)
+```
+
+Üretilen değeri `JWT_KEY` alanına yazın. Yönetici ve mutfak başlangıç hesapları
+isteğe bağlıdır; tanımlanmayacaksa ilgili alanları boş bırakabilirsiniz.
+
+### 2. Konteynerleri başlatın
+
+```powershell
+docker compose up --build -d
+docker compose ps
+docker compose logs -f app
+```
+
+Uygulama varsayılan olarak `http://localhost:5223` adresinde açılır. Başka bir
+cihazdan veya alan adından erişilecekse o adresi `.env` içindeki
+`ALLOWED_HOSTS` listesine noktalı virgülle ekleyin:
+
+```dotenv
+ALLOWED_HOSTS=localhost;127.0.0.1;192.168.1.100;ornek.tailnet.ts.net
+```
+
+Konteynerleri durdurmak için:
+
+```powershell
+docker compose down
+```
+
+Veritabanı `sqlserver-data` adlı Docker volume içinde korunur. Aşağıdaki komut
+veritabanını da geri alınamayacak şekilde siler; yalnızca temiz kurulum
+istediğinizde kullanın:
+
+```powershell
+docker compose down --volumes
+```
+
+Compose yerel kullanım için uygulamayı HTTP olarak yayınlar. İnternete açık bir
+üretim kurulumunda uygulamanın önüne HTTPS sağlayan bir reverse proxy koyun,
+`Security__UseHttpsRedirection=true` ayarlayın ve yalnızca gerçek alan adlarını
+`ALLOWED_HOSTS` listesine ekleyin.
 
 ## Geliştirme komutları
 

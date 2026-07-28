@@ -29,7 +29,7 @@ public static class SalesAnalysisPdfExporter
             {
                 page.Size(PageSizes.A4);
                 page.Margin(28);
-                page.DefaultTextStyle(style => style.FontFamily("Arial").FontSize(9).FontColor(Colors.Grey.Darken3));
+                page.DefaultTextStyle(style => style.FontSize(9).FontColor(Colors.Grey.Darken3));
 
                 page.Header()
                     .Background(Colors.BlueGrey.Darken4)
