@@ -1,0 +1,66 @@
+{
+  "expo": {
+    "name": "Restoran Otomasyon",
+    "slug": "restoran-otomasyon-mobile",
+    "owner": "ardqe",
+    "version": "1.0.8",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/f87b1c50-e615-4296-92b9-d2f9738e9fa6",
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0
+    },
+    "scheme": "restoran-otomasyon",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#112a32"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "QR kodunu taramak için kameranıza erişim gereklidir.",
+          "recordAudioAndroid": false
+        }
+      ],
+      "expo-secure-store",
+      "expo-asset",
+      "expo-status-bar",
+      "expo-notifications"
+    ],
+    "android": {
+      "package": "com.ardag.restoranotomasyon",
+      "versionCode": 9,
+      "usesCleartextTraffic": true,
+      "softwareKeyboardLayoutMode": "resize",
+      "permissions": [
+        "android.permission.CAMERA"
+      ]
+    },
+    "ios": {
+      "bundleIdentifier": "com.ardag.restoranotomasyon",
+      "supportsTablet": true
+    },
+    "experiments": {
+      "baseUrl": "/customer"
+    },
+    "web": {
+      "bundler": "metro",
+      "favicon": "./assets/icon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "f87b1c50-e615-4296-92b9-d2f9738e9fa6"
+      }
+    }
+  }
+}

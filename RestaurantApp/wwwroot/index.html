@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Restoran Otomasyon</title>
+  <style>
+    :root { color-scheme: light; font-family: Inter, Arial, sans-serif; }
+    * { box-sizing: border-box; }
+    body { align-items: center; background: linear-gradient(135deg, #112a32, #1c6b63); color: #17212b; display: flex; justify-content: center; margin: 0; min-height: 100vh; padding: 24px; }
+    main { display: grid; gap: 28px; grid-template-columns: 1.15fr .85fr; max-width: 950px; width: 100%; }
+    .intro { color: #fff; padding: 36px 18px; }
+    .eyebrow { color: #a8e0cd; font-size: 13px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+    h1 { font-size: clamp(38px, 6vw, 62px); line-height: 1.05; margin: 12px 0; }
+    .intro p { color: #d6eee7; font-size: 18px; line-height: 1.55; max-width: 510px; }
+    .features { color: #d6eee7; display: grid; font-size: 14px; gap: 8px; margin-top: 24px; }
+    .card { background: #fff; border-radius: 16px; box-shadow: 0 24px 60px #06181c66; padding: 28px; }
+    h2 { font-size: 25px; margin: 0 0 5px; }
+    .muted { color: #65747a; font-size: 14px; line-height: 1.45; margin: 0 0 20px; }
+    form { display: grid; gap: 13px; }
+    #registrationFields { display: grid; gap: 13px; }
+    #registrationFields[hidden] { display: none; }
+    label { color: #34444b; display: grid; font-size: 13px; font-weight: 800; gap: 6px; }
+    input, select { border: 1px solid #c8d3d5; border-radius: 8px; font: inherit; min-height: 44px; padding: 0 11px; }
+    button { background: #146c5f; border: 0; border-radius: 8px; color: #fff; cursor: pointer; font: inherit; font-weight: 800; min-height: 45px; padding: 0 15px; }
+    button.secondary { background: #e8f2ef; color: #146c5f; }
+    .switch { display: grid; gap: 8px; grid-template-columns: 1fr 1fr; margin: 18px 0; }
+    .message { border-radius: 8px; display: none; font-size: 13px; line-height: 1.4; margin-top: 14px; padding: 10px; }
+    .message.error { background: #fff0ef; color: #a12d21; display: block; }
+    .message.success { background: #e7f7ef; color: #17633f; display: block; }
+    @media (max-width: 720px) { main { grid-template-columns: 1fr; } .intro { padding: 8px; } }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="intro">
+      <div class="eyebrow">Restoran otomasyon</div>
+      <h1>Masadan mutfağa, tek akış.</h1>
+      <p>Hesabınızla giriş yapın; müşteri hesabı sipariş ekranına, mutfak hesabı canlı KDS ekranına yönlendirir.</p>
+      <div class="features">
+        <span>✓ QR koduyla masadan sipariş</span>
+        <span>✓ Canlı mutfak takibi</span>
+        <span>✓ Hesap isteği ve ödeme tercihi</span>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2 id="title">Giriş yap</h2>
+      <p class="muted" id="description">Hesabınla devam ederek doğru panele yönlendiril.</p>
+      <div class="switch">
+        <button type="button" id="loginTab">Giriş yap</button>
+        <button type="button" class="secondary" id="registerTab">Kayıt ol</button>
+      </div>
+      <form id="authForm">
+        <label>Kullanıcı adı<input id="username" autocomplete="username" required minlength="3" /></label>
+        <div id="registrationFields" hidden>
+          <label>E-posta<input id="email" type="email" autocomplete="email" maxlength="256" /></label>
+          <label>Telefon numarası<input id="phoneNumber" type="tel" autocomplete="tel" maxlength="30" /></label>
+        </div>
+        <label>Şifre<input id="password" type="password" autocomplete="current-password" required minlength="6" /></label>
+        <button id="submitButton" type="submit">Giriş yap</button>
+      </form>
+      <div class="message" id="message"></div>
+    </section>
+  </main>
+  <script>
+    const form = document.getElementById('authForm');
+    const loginTab = document.getElementById('loginTab');
+    const registerTab = document.getElementById('registerTab');
+    const title = document.getElementById('title');
+    const description = document.getElementById('description');
+    const submitButton = document.getElementById('submitButton');
+    const message = document.getElementById('message');
+    const registrationFields = document.getElementById('registrationFields');
+    const emailInput = document.getElementById('email');
+    const phoneNumberInput = document.getElementById('phoneNumber');
+    const passwordInput = document.getElementById('password');
+    let mode = 'login';
+
+    function setMode(nextMode) {
+      mode = nextMode;
+      const registering = mode === 'register';
+      title.textContent = registering ? 'Kayıt ol' : 'Giriş yap';
+      description.textContent = registering ? 'Hesabınızı oluşturun; girişten sonra müşteri paneline otomatik yönlendirilirsiniz.' : 'Hesabınızla devam ederek doğru panele yönlendirilirsiniz.';
+      submitButton.textContent = registering ? 'Hesap oluştur' : 'Giriş yap';
+      loginTab.className = registering ? 'secondary' : '';
+      registerTab.className = registering ? '' : 'secondary';
+      registrationFields.hidden = !registering;
+      emailInput.required = registering;
+      phoneNumberInput.required = registering;
+      passwordInput.autocomplete = registering ? 'new-password' : 'current-password';
+      showMessage('');
+    }
+
+    function showMessage(text, type) {
+      message.textContent = text;
+      message.className = text ? `message ${type}` : 'message';
+    }
+
+    loginTab.addEventListener('click', () => setMode('login'));
+    registerTab.addEventListener('click', () => setMode('register'));
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      showMessage('');
+      submitButton.disabled = true;
+      submitButton.textContent = 'Lütfen bekleyin…';
+      const payload = {
+        username: document.getElementById('username').value.trim(),
+        password: passwordInput.value,
+        ...(mode === 'register'
+          ? {
+              email: emailInput.value.trim(),
+              phoneNumber: phoneNumberInput.value.trim()
+            }
+          : {})
+      };
+
+      try {
+        const response = await fetch(`/api/auth/${mode === 'register' ? 'register' : 'login'}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(typeof data === 'string' ? data : data.title || 'İşlem tamamlanamadı.');
+        showMessage('Giriş başarılı. Panelinize yönlendiriliyorsunuz...', 'success');
+        const destination = data.role === 'Admin'
+          ? '/admin/'
+          : data.role === 'Kitchen'
+            ? '/kitchen'
+            : '/customer';
+        setTimeout(() => { window.location.href = destination; }, 650);
+      } catch (error) {
+        showMessage(error.message || 'Bağlantı kurulamadı.', 'error');
+      } finally {
+        submitButton.disabled = false;
+        submitButton.textContent = mode === 'register' ? 'Hesap oluştur' : 'Giriş yap';
+      }
+    });
+  </script>
+</body>
+</html>

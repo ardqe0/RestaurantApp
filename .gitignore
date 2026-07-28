@@ -1,0 +1,44 @@
+# IDE and local workspace state
+.vs/
+.vscode/
+.idea/
+.agents/
+.codex-build/
+.codex-remote-attachments/
+*.user
+*.suo
+
+# .NET build output
+**/bin/
+**/obj/
+
+# JavaScript / Expo build output
+**/node_modules/
+**/.expo/
+**/dist/
+**/.web-export-preview/
+.pnpm-store/
+
+# Generated reports, temporary files and logs
+tmp/
+output/
+*.log
+*.tmp
+
+# Local secrets and machine-specific configuration
+.env
+.env.*
+!.env.example
+RestaurantApp/appsettings.Development.json
+RestaurantApp/appsettings.*.local.json
+*.pfx
+*.p12
+*.snk
+
+# Mobile installation artifacts
+*.apk
+*.aab
+
+# Operating system files
+Thumbs.db
+.DS_Store

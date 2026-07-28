@@ -1,0 +1,13 @@
+{
+  "expo": {
+    "name": "Restoran Mutfak Ekranı",
+    "slug": "restaurant-kitchen-kds",
+    "version": "1.0.0",
+    "orientation": "default",
+    "userInterfaceStyle": "light",
+    "experiments": {
+      "baseUrl": "/kitchen"
+    },
+    "web": { "bundler": "metro" }
+  }
+}
