@@ -14,22 +14,28 @@ ve yönetici rolleri backend tarafından atanır.
 Önce backend'i çalıştırın:
 
 ```powershell
-cd C:\Users\ardag\source\repos\RestaurantApp\RestaurantApp
+cd .\RestaurantApp
 dotnet run
 ```
 
 Ardından mobil projeyi başlatın:
 
 ```powershell
-cd C:\Users\ardag\source\repos\RestaurantApp\customer-mobile
+cd .\customer-mobile
 .\start-expo.cmd
 ```
 
 Native uygulamanın API adresi `EXPO_PUBLIC_API_URL` ile derleme sırasında
-belirlenir. Adres kullanıcı arayüzünde gösterilmez. Preview APK profili şu anda
-Tailscale Funnel üzerinden
-`http://localhost:5223` adresini kullanır. Backend ve
-Funnel çalışır durumda olmalıdır.
+belirlenir. Yerel ayarı oluşturmak için `.env.example` dosyasını `.env.local`
+adıyla kopyalayın ve kendi API adresinizi yazın:
+
+```powershell
+Copy-Item .\.env.example .\.env.local
+```
+
+`.env.local` Git tarafından izlenmez. Dosya yoksa native uygulama
+`http://localhost:5223` adresini kullanır. Fiziksel telefonda kullanılacak adres
+HTTPS üzerinden erişilebilir olmalıdır.
 
 ## Android APK
 
@@ -47,6 +53,9 @@ Ardından:
 
 `preview` profili telefona doğrudan kurulabilen `.apk` üretir. Google Play için `production` profili `.aab` üretir ve yayımlamadan önce kalıcı, güvenilir bir HTTPS API adresi kullanılmalıdır.
 
+Build betiği, varsa `.env.local` değerlerini EAS `preview` ortamına yükler;
+böylece kişisel API adresi `eas.json` veya Git geçmişine yazılmaz.
+
 ## OTA güncellemesi
 
 Aynı `runtimeVersion` üzerinde yalnızca JavaScript/TypeScript ve görsel arayüz
@@ -63,5 +72,5 @@ değişikliği yayımlamak için:
 - Her rol yalnızca kendi ekranına yönlendirilir.
 - Sipariş okuma ve hesap isteme işlemleri sipariş sahibi müşteriyle sınırlandırılır.
 - SignalR bağlantısı JWT/cookie ister ve müşteri yalnızca kendi sipariş olaylarını alır.
-- Preview API bağlantısı HTTPS kullanır. Mağaza sürümünden önce Android
+- Mağaza API bağlantısı HTTPS kullanmalıdır. Mağaza sürümünden önce Android
   `usesCleartextTraffic` ayarı kapatılmalıdır.

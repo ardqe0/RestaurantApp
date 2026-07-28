@@ -6,15 +6,14 @@
     "preview": {
       "distribution": "internal",
       "channel": "preview",
-      "env": {
-        "EXPO_PUBLIC_API_URL": "http://localhost:5223"
-      },
+      "environment": "preview",
       "android": {
         "buildType": "apk"
       }
     },
     "production": {
       "channel": "production",
+      "environment": "production",
       "android": {
         "buildType": "app-bundle"
       }

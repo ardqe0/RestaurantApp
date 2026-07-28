@@ -8,4 +8,4 @@ const configuredApiUrl = process.env.EXPO_PUBLIC_API_URL;
 
 export const defaultApiBaseUrl = Platform.OS === "web" && typeof window !== "undefined"
   ? window.location.origin
-  : trimTrailingSlash(configuredApiUrl || "http://10.0.2.2:5223");
+  : trimTrailingSlash(configuredApiUrl || "http://localhost:5223");
