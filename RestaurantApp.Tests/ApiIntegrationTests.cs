@@ -215,6 +215,39 @@ public sealed class ApiIntegrationTests : IClassFixture<RestaurantAppFactory>, I
         Assert.Equal(3, finalDbContext.Payments.Count(payment => payment.OrderId == order.Id && payment.Status == PaymentStatus.Completed));
     }
 
+    [Fact]
+    public async Task Kitchen_CanSplitSinglePendingPaymentBeforeCollectionStarts()
+    {
+        using var customer = await CreateAuthenticatedClientAsync("customer-one");
+        var order = await CreateOrderAsync(customer, tableId: 1);
+        using var kitchen = await CreateAuthenticatedClientAsync("kitchen-test");
+
+        Assert.Equal(HttpStatusCode.NoContent, (await kitchen.PutAsJsonAsync(
+            $"/api/admin/orders/{order.Id}/status",
+            new UpdateOrderStatusRequest(OrderStatus.Ready),
+            JsonOptions)).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await customer.PostAsJsonAsync(
+            $"/api/orders/{order.Id}/request-payment",
+            new RequestPaymentRequest(PaymentMethod.CreditCard),
+            JsonOptions)).StatusCode);
+
+        var splitResponse = await kitchen.PutAsJsonAsync(
+            $"/api/admin/payments/{order.Id}/split",
+            new SplitPaymentRequest(4),
+            JsonOptions);
+        Assert.Equal(HttpStatusCode.OK, splitResponse.StatusCode);
+
+        var parts = await splitResponse.Content.ReadFromJsonAsync<List<PaymentDto>>(JsonOptions);
+        Assert.NotNull(parts);
+        Assert.Equal(4, parts.Count);
+        Assert.Equal(order.TotalAmount, parts.Sum(payment => payment.Amount));
+        Assert.All(parts, payment =>
+        {
+            Assert.Equal(PaymentStatus.Pending, payment.Status);
+            Assert.Equal(PaymentMethod.CreditCard, payment.Method);
+        });
+    }
+
     private async Task<HttpClient> CreateAuthenticatedClientAsync(string username)
     {
         var client = _factory.CreateClient();

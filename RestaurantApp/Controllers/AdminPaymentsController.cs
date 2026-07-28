@@ -32,6 +32,86 @@ public class AdminPaymentsController : ControllerBase
         _auditLog = auditLog;
     }
 
+    [HttpPut("{orderId:int}/split")]
+    public async Task<ActionResult<IReadOnlyCollection<PaymentDto>>> SplitPayment(
+        int orderId,
+        SplitPaymentRequest request)
+    {
+        var order = await _dbContext.Orders
+            .Include(order => order.Table)
+            .Include(order => order.Payments)
+            .FirstOrDefaultAsync(order => order.Id == orderId);
+
+        if (order is null)
+        {
+            return NotFound();
+        }
+
+        if (order.Status != OrderStatus.Ready
+            || order.Table?.Status != TableStatus.WaitingForPayment
+            || order.RequestedPaymentMethod is null)
+        {
+            return BadRequest("Adisyon yalnızca ödeme bekleyen hazır siparişlerde bölünebilir.");
+        }
+
+        if (order.Payments.Any(payment => payment.Status == PaymentStatus.Completed))
+        {
+            return BadRequest("Tahsilat başladıktan sonra adisyon yeniden bölünemez.");
+        }
+
+        var previousSplitCount = order.Payments.Count;
+        _dbContext.Payments.RemoveRange(order.Payments);
+        order.Payments.Clear();
+
+        var totalCents = decimal.ToInt32(decimal.Round(
+            order.TotalAmount * 100,
+            0,
+            MidpointRounding.AwayFromZero));
+        var baseCents = totalCents / request.SplitCount;
+        var remainderCents = totalCents % request.SplitCount;
+        var createdAt = DateTime.UtcNow;
+
+        for (var index = 0; index < request.SplitCount; index++)
+        {
+            order.Payments.Add(new Payment
+            {
+                OrderId = order.Id,
+                Amount = (baseCents + (index < remainderCents ? 1 : 0)) / 100m,
+                Method = order.RequestedPaymentMethod.Value,
+                Status = PaymentStatus.Pending,
+                CreatedAt = createdAt
+            });
+        }
+
+        order.UpdatedAt = createdAt;
+        _auditLog.Add(
+            "Split",
+            "Payment",
+            order.Id.ToString(),
+            new { SplitCount = previousSplitCount },
+            new { request.SplitCount, order.TotalAmount });
+        await _dbContext.SaveChangesAsync();
+
+        var result = order.Payments
+            .OrderBy(payment => payment.Id)
+            .Select(payment => new PaymentDto(
+                payment.Id,
+                payment.OrderId,
+                payment.Amount,
+                payment.Method,
+                payment.Status,
+                payment.CreatedAt,
+                payment.CompletedAt))
+            .ToList();
+
+        await _hubContext.SendToOrderAudienceAsync(
+            "PaymentStatusChanged",
+            new { OrderId = order.Id },
+            order.CustomerUserId);
+
+        return Ok(result);
+    }
+
     [HttpPost]
     public async Task<ActionResult<PaymentDto>> CreatePayment(CreatePaymentRequest request)
     {

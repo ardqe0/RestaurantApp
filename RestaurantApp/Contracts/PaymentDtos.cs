@@ -8,6 +8,9 @@ public record CreatePaymentRequest(
     PaymentMethod Method,
     int? PaymentId = null);
 
+public record SplitPaymentRequest(
+    [Range(2, 4)] int SplitCount);
+
 public record PaymentDto(
     int Id,
     int OrderId,

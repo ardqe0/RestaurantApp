@@ -19,6 +19,7 @@ import {
   getActiveOrders,
   getActiveWaiterCalls,
   resolveWaiterCall,
+  splitPayment,
   updateItemStatus
 } from "./kitchenApi";
 import { showKitchenAlertNotification } from "./notifications";
@@ -39,6 +40,7 @@ export function KitchenScreen({ apiBaseUrl, username, onLogout }: KitchenScreenP
   const [isLoading, setIsLoading] = useState(true);
   const [updatingItemId, setUpdatingItemId] = useState<number | null>(null);
   const [payingOrderId, setPayingOrderId] = useState<number | null>(null);
+  const [splittingOrderId, setSplittingOrderId] = useState<number | null>(null);
   const [resolvingWaiterCallId, setResolvingWaiterCallId] = useState<number | null>(null);
   const [cancellingOrderId, setCancellingOrderId] = useState<number | null>(null);
   const [cancellationReason, setCancellationReason] = useState("");
@@ -204,6 +206,18 @@ export function KitchenScreen({ apiBaseUrl, username, onLogout }: KitchenScreenP
     }
   }
 
+  async function changePaymentSplit(orderId: number, splitCount: number) {
+    setSplittingOrderId(orderId);
+    try {
+      await splitPayment(apiBaseUrl, orderId, splitCount);
+      await loadOrders(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Adisyon bölünemedi.");
+    } finally {
+      setSplittingOrderId(null);
+    }
+  }
+
   async function confirmCancellation() {
     if (!cancellingOrderId || !cancellationReason.trim()) return;
     try {
@@ -357,7 +371,9 @@ export function KitchenScreen({ apiBaseUrl, username, onLogout }: KitchenScreenP
                 method={order.requestedPaymentMethod}
                 payments={order.payments ?? []}
                 isPaying={payingOrderId === order.id}
+                isSplitting={splittingOrderId === order.id}
                 onPayment={takePayment}
+                onSplit={changePaymentSplit}
               />
             ) : null}
 
@@ -462,24 +478,53 @@ function PaymentActions({
   method,
   payments,
   isPaying,
-  onPayment
+  isSplitting,
+  onPayment,
+  onSplit
 }: {
   orderId: number;
   method: PaymentMethod;
   payments: PaymentDto[];
   isPaying: boolean;
+  isSplitting: boolean;
   onPayment: (orderId: number, method: PaymentMethod, paymentId?: number) => Promise<void>;
+  onSplit: (orderId: number, splitCount: number) => Promise<void>;
 }) {
+  const canChangeSplit = !payments.some((payment) => payment.status === "Completed");
+
   return (
     <View style={styles.paymentPanel}>
       <Text style={styles.paymentTitle}>Müşterinin seçtiği ödeme yöntemi: {paymentMethodText(method)}</Text>
       <Text style={styles.paymentHint}>{payments.length > 1 ? `Adisyon ${payments.length} parçaya bölündü.` : "Tek adisyon"} · Tüm parçalar ödenince masa boşalır.</Text>
+      {canChangeSplit ? (
+        <View style={styles.splitPanel}>
+          <Text style={styles.splitTitle}>Adisyonu böl</Text>
+          <View style={styles.splitActions}>
+            {[2, 3, 4].map((splitCount) => (
+              <Pressable
+                key={splitCount}
+                disabled={isPaying || isSplitting || payments.length === splitCount}
+                onPress={() => void onSplit(orderId, splitCount)}
+                style={[
+                  styles.splitButton,
+                  payments.length === splitCount ? styles.splitButtonSelected : null,
+                  (isPaying || isSplitting) ? styles.disabled : null
+                ]}
+              >
+                <Text style={styles.splitButtonText}>
+                  {payments.length === splitCount ? `✓ ${splitCount} parça` : `${splitCount} parçaya böl`}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+      ) : null}
       {(payments.length ? payments : [{ id: 0, amount: 0, status: "Pending", method } as PaymentDto]).map((payment, index) => (
         <Pressable
           key={payment.id || index}
-          disabled={isPaying || payment.status === "Completed"}
+          disabled={isPaying || isSplitting || payment.status === "Completed"}
           onPress={() => void onPayment(orderId, payment.method, payment.id || undefined)}
-          style={[styles.paymentButton, (isPaying || payment.status === "Completed") ? styles.disabled : null]}
+          style={[styles.paymentButton, (isPaying || isSplitting || payment.status === "Completed") ? styles.disabled : null]}
         >
           <Text style={styles.paymentButtonText}>
             {payment.status === "Completed"
@@ -583,6 +628,12 @@ const styles = StyleSheet.create({
   paymentPanel: { backgroundColor: "#eef8f2", borderRadius: 8, gap: 6, marginTop: 4, padding: 10 },
   paymentTitle: { color: "#17633f", fontSize: 14, fontWeight: "900" },
   paymentHint: { color: "#416451", fontSize: 12 },
+  splitPanel: { gap: 6, marginTop: 4 },
+  splitTitle: { color: "#284d3a", fontSize: 12, fontWeight: "800" },
+  splitActions: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  splitButton: { backgroundColor: "#dcebe3", borderRadius: 7, flexGrow: 1, minWidth: 90, paddingHorizontal: 8, paddingVertical: 9 },
+  splitButtonSelected: { backgroundColor: "#9fd6b9" },
+  splitButtonText: { color: "#175b3a", fontSize: 11, fontWeight: "900", textAlign: "center" },
   paymentButton: { backgroundColor: "#178251", borderRadius: 7, marginTop: 3, paddingVertical: 10 },
   paymentButtonText: { color: "#fff", fontSize: 12, fontWeight: "900", textAlign: "center" },
   cancelOrderButton: { backgroundColor: "#b83a31", borderRadius: 8, marginTop: 8, paddingVertical: 10 },

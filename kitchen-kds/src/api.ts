@@ -52,6 +52,13 @@ export function createPayment(baseUrl: string, orderId: number, method: PaymentM
   });
 }
 
+export function splitPayment(baseUrl: string, orderId: number, splitCount: number) {
+  return request<void>(baseUrl, `/api/admin/payments/${orderId}/split`, {
+    method: "PUT",
+    body: JSON.stringify({ splitCount })
+  });
+}
+
 export function getActiveWaiterCalls(baseUrl: string) {
   return request<WaiterCallDto[]>(baseUrl, "/api/admin/waiter-calls/active");
 }
