@@ -132,6 +132,8 @@ textarea { min-height: 76px; resize: vertical; }
 .category-form { grid-template-columns: 1fr 100px; }.category-form .checkbox-label, .category-form .form-actions { grid-column: 1 / -1; }
 .item-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }.full-field { grid-column: 1 / -1; }
 .table-form { align-items: end; grid-template-columns: repeat(4, minmax(130px, 1fr)) auto; }
+.campaign-form { align-items: end; grid-template-columns: repeat(3, minmax(150px, 1fr)); }
+.campaign-form .form-actions { grid-column: span 2; }
 .checkbox-label { align-items: center; display: flex; font-size: 12px; min-height: 30px; }.checkbox-label input { min-height: 0; width: 16px; }
 .form-actions, .row-actions { display: flex; gap: 7px; }
 .entity-list { display: grid; gap: 7px; }
@@ -182,7 +184,7 @@ textarea { min-height: 76px; resize: vertical; }
   .stat-grid, .report-grid { grid-template-columns: 1fr; }.stat-card { min-height: 103px; }.stat-card i { margin-bottom: 12px; }
   .date-filter { grid-template-columns: 1fr; }.analytics-grid { grid-template-columns: 1fr; }.chart-panel, .top-products { padding: 13px; }
   .product-performance { grid-template-columns: 1fr; }.summary-head { align-items: flex-start; flex-direction: column; }.summary-toggle { width: 100%; }.summary-toggle button { flex: 1; }
-  .category-form, .item-form, .table-form { grid-template-columns: 1fr; }.category-form .checkbox-label, .category-form .form-actions, .full-field, .table-form .form-actions { grid-column: 1; }
+  .category-form, .item-form, .table-form, .campaign-form { grid-template-columns: 1fr; }.category-form .checkbox-label, .category-form .form-actions, .full-field, .table-form .form-actions, .campaign-form .form-actions { grid-column: 1; }
   .section-actions { align-items: stretch; flex-direction: column; width: 100%; }.section-actions input { width: 100%; }
   .order-filters { grid-template-columns: 1fr; width: 100%; }.order-card-footer { align-items: flex-start; flex-direction: column; }.order-status-actions { justify-content: flex-start; }
   .entity-row { align-items: flex-start; flex-wrap: wrap; }.row-actions { margin-left: auto; }

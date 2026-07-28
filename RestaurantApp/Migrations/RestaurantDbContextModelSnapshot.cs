@@ -280,6 +280,48 @@ namespace RestaurantApp.Migrations
                     b.ToTable("AuditLogs");
                 });
 
+            modelBuilder.Entity("RestaurantApp.Models.Campaign", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("DiscountType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<decimal>("DiscountValue")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("EndsAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<decimal>("MinimumOrderAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<DateTime>("StartsAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IsActive", "StartsAt", "EndsAt");
+
+                    b.ToTable("Campaigns");
+                });
+
             modelBuilder.Entity("RestaurantApp.Models.Category", b =>
                 {
                     b.Property<int>("Id")
@@ -618,6 +660,13 @@ namespace RestaurantApp.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<int?>("CampaignId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("CampaignName")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
                     b.Property<string>("CancellationReason")
                         .HasColumnType("nvarchar(max)");
 
@@ -627,6 +676,10 @@ namespace RestaurantApp.Migrations
                     b.Property<string>("CustomerUserId")
                         .HasColumnType("nvarchar(450)");
 
+                    b.Property<decimal>("DiscountAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<string>("RequestedPaymentMethod")
                         .HasMaxLength(30)
                         .HasColumnType("nvarchar(30)");
@@ -635,6 +688,10 @@ namespace RestaurantApp.Migrations
                         .IsRequired()
                         .HasMaxLength(30)
                         .HasColumnType("nvarchar(30)");
+
+                    b.Property<decimal>("SubtotalAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<int>("TableId")
                         .HasColumnType("int");
@@ -647,6 +704,8 @@ namespace RestaurantApp.Migrations
                         .HasColumnType("datetime2");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CampaignId");
 
                     b.HasIndex("TableId");
 
@@ -738,6 +797,9 @@ namespace RestaurantApp.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -756,8 +818,7 @@ namespace RestaurantApp.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("OrderId")
-                        .IsUnique();
+                    b.HasIndex("OrderId", "Status");
 
                     b.ToTable("Payments");
                 });
@@ -978,6 +1039,11 @@ namespace RestaurantApp.Migrations
 
             modelBuilder.Entity("RestaurantApp.Models.Order", b =>
                 {
+                    b.HasOne("RestaurantApp.Models.Campaign", "Campaign")
+                        .WithMany("Orders")
+                        .HasForeignKey("CampaignId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("RestaurantApp.Models.AppUser", "CustomerUser")
                         .WithMany("Orders")
                         .HasForeignKey("CustomerUserId")
@@ -988,6 +1054,8 @@ namespace RestaurantApp.Migrations
                         .HasForeignKey("TableId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("Campaign");
 
                     b.Navigation("CustomerUser");
 
@@ -1027,8 +1095,8 @@ namespace RestaurantApp.Migrations
             modelBuilder.Entity("RestaurantApp.Models.Payment", b =>
                 {
                     b.HasOne("RestaurantApp.Models.Order", "Order")
-                        .WithOne("Payment")
-                        .HasForeignKey("RestaurantApp.Models.Payment", "OrderId")
+                        .WithMany("Payments")
+                        .HasForeignKey("OrderId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -1063,6 +1131,11 @@ namespace RestaurantApp.Migrations
                     b.Navigation("PushTokens");
                 });
 
+            modelBuilder.Entity("RestaurantApp.Models.Campaign", b =>
+                {
+                    b.Navigation("Orders");
+                });
+
             modelBuilder.Entity("RestaurantApp.Models.Category", b =>
                 {
                     b.Navigation("MenuItems");
@@ -1081,7 +1154,7 @@ namespace RestaurantApp.Migrations
                 {
                     b.Navigation("Items");
 
-                    b.Navigation("Payment");
+                    b.Navigation("Payments");
 
                     b.Navigation("Review");
                 });

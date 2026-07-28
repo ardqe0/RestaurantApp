@@ -141,6 +141,80 @@ public sealed class ApiIntegrationTests : IClassFixture<RestaurantAppFactory>, I
         Assert.Contains("Test Çorbası", log.AfterJson);
     }
 
+    [Fact]
+    public async Task ActiveCampaign_AppliesBestDiscountToNewOrder()
+    {
+        using var admin = await CreateAuthenticatedClientAsync("admin-test");
+        var campaignResponse = await admin.PostAsJsonAsync(
+            "/api/admin/campaigns",
+            new UpsertCampaignRequest(
+                "Test indirimi",
+                CampaignDiscountType.Percentage,
+                10m,
+                50m,
+                DateTime.UtcNow.AddHours(-1),
+                DateTime.UtcNow.AddDays(1),
+                true),
+            JsonOptions);
+        Assert.Equal(HttpStatusCode.Created, campaignResponse.StatusCode);
+
+        using var customer = await CreateAuthenticatedClientAsync("customer-one");
+        var order = await CreateOrderAsync(customer, tableId: 1);
+        Assert.Equal(95m, order.SubtotalAmount);
+        Assert.Equal(9.5m, order.DiscountAmount);
+        Assert.Equal(85.5m, order.TotalAmount);
+        Assert.Equal("Test indirimi", order.CampaignName);
+    }
+
+    [Fact]
+    public async Task SplitPayment_KeepsTableOccupiedUntilEveryPartIsPaid()
+    {
+        using var customer = await CreateAuthenticatedClientAsync("customer-one");
+        var order = await CreateOrderAsync(customer, tableId: 1);
+        using var kitchen = await CreateAuthenticatedClientAsync("kitchen-test");
+
+        Assert.Equal(HttpStatusCode.NoContent, (await kitchen.PutAsJsonAsync(
+            $"/api/admin/orders/{order.Id}/status",
+            new UpdateOrderStatusRequest(OrderStatus.Ready),
+            JsonOptions)).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await customer.PostAsJsonAsync(
+            $"/api/orders/{order.Id}/request-payment",
+            new RequestPaymentRequest(PaymentMethod.Cash, 3),
+            JsonOptions)).StatusCode);
+
+        var paymentPlan = await customer.GetFromJsonAsync<OrderDto>($"/api/orders/{order.Id}", JsonOptions);
+        Assert.Equal(3, paymentPlan!.Payments!.Count);
+        Assert.Equal(paymentPlan.TotalAmount, paymentPlan.Payments.Sum(payment => payment.Amount));
+
+        var firstPayment = paymentPlan.Payments.First();
+        Assert.Equal(HttpStatusCode.Created, (await kitchen.PostAsJsonAsync(
+            "/api/admin/payments",
+            new CreatePaymentRequest(order.Id, PaymentMethod.Cash, firstPayment.Id),
+            JsonOptions)).StatusCode);
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var dbContext = scope.ServiceProvider.GetRequiredService<RestaurantDbContext>();
+            Assert.Equal(OrderStatus.Ready, (await dbContext.Orders.FindAsync(order.Id))!.Status);
+            Assert.Equal(TableStatus.WaitingForPayment, (await dbContext.RestaurantTables.FindAsync(1))!.Status);
+        }
+
+        foreach (var payment in paymentPlan.Payments.Skip(1))
+        {
+            var response = await kitchen.PostAsJsonAsync(
+                "/api/admin/payments",
+                new CreatePaymentRequest(order.Id, PaymentMethod.Cash, payment.Id),
+                JsonOptions);
+            Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        }
+
+        using var finalScope = _factory.Services.CreateScope();
+        var finalDbContext = finalScope.ServiceProvider.GetRequiredService<RestaurantDbContext>();
+        Assert.Equal(OrderStatus.Delivered, (await finalDbContext.Orders.FindAsync(order.Id))!.Status);
+        Assert.Equal(TableStatus.Empty, (await finalDbContext.RestaurantTables.FindAsync(1))!.Status);
+        Assert.Equal(3, finalDbContext.Payments.Count(payment => payment.OrderId == order.Id && payment.Status == PaymentStatus.Completed));
+    }
+
     private async Task<HttpClient> CreateAuthenticatedClientAsync(string username)
     {
         var client = _factory.CreateClient();

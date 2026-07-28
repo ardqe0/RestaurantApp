@@ -230,5 +230,16 @@ public class CustomerController : ControllerBase
                     order.Review.Rating,
                     order.Review.Comment,
                     order.Review.CreatedAt,
-                    order.Review.UpdatedAt));
+                    order.Review.UpdatedAt),
+            order.SubtotalAmount,
+            order.DiscountAmount,
+            order.CampaignName,
+            order.Payments.OrderBy(payment => payment.Id).Select(payment => new PaymentDto(
+                payment.Id,
+                payment.OrderId,
+                payment.Amount,
+                payment.Method,
+                payment.Status,
+                payment.CreatedAt,
+                payment.CompletedAt)).ToList());
 }

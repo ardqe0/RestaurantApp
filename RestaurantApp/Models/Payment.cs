@@ -15,4 +15,6 @@ public class Payment
     public PaymentStatus Status { get; set; } = PaymentStatus.Pending;
 
     public DateTime CreatedAt { get; set; }
+
+    public DateTime? CompletedAt { get; set; }
 }

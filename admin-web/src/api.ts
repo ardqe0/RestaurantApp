@@ -1,6 +1,7 @@
 import type {
   AnalyticsData,
   AuditLog,
+  Campaign,
   Category,
   CurrentUser,
   DailyReport,
@@ -54,7 +55,7 @@ export const getCurrentUser = () => request<CurrentUser>("/api/auth/me");
 export const logout = () => request<void>("/api/auth/logout", { method: "POST" });
 
 export async function getDashboardData(reportDate: string): Promise<DashboardData> {
-  const [tables, activeOrders, categories, menuItems, history, dailyReport, summary, auditLogs] = await Promise.all([
+  const [tables, activeOrders, categories, menuItems, history, dailyReport, summary, auditLogs, campaigns] = await Promise.all([
     request<RestaurantTable[]>("/api/admin/tables"),
     request<Order[]>("/api/admin/orders/active"),
     request<Category[]>("/api/admin/categories"),
@@ -62,11 +63,20 @@ export async function getDashboardData(reportDate: string): Promise<DashboardDat
     request<Order[]>(`/api/admin/orders/history?date=${encodeURIComponent(reportDate)}`),
     request<DailyReport>(`/api/admin/reports/daily?date=${encodeURIComponent(reportDate)}`),
     request<DashboardSummary>("/api/admin/reports/dashboard"),
-    request<AuditLog[]>("/api/admin/audit-logs?limit=100")
+    request<AuditLog[]>("/api/admin/audit-logs?limit=100"),
+    request<Campaign[]>("/api/admin/campaigns")
   ]);
 
-  return { tables, activeOrders, categories, menuItems, history, dailyReport, summary, auditLogs };
+  return { tables, activeOrders, categories, menuItems, history, dailyReport, summary, auditLogs, campaigns };
 }
+
+export type CampaignPayload = Omit<Campaign, "id">;
+export const createCampaign = (payload: CampaignPayload) =>
+  request<Campaign>("/api/admin/campaigns", { method: "POST", body: JSON.stringify(payload) });
+export const updateCampaign = (id: number, payload: CampaignPayload) =>
+  request<void>(`/api/admin/campaigns/${id}`, { method: "PUT", body: JSON.stringify(payload) });
+export const deleteCampaign = (id: number) =>
+  request<void>(`/api/admin/campaigns/${id}`, { method: "DELETE" });
 
 export async function getAnalytics(startDate: string, endDate: string): Promise<AnalyticsData> {
   const query = `startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`;

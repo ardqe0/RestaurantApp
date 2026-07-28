@@ -3,6 +3,7 @@ import type {
   AdminAnalyticsDto,
   AdminCategoryDto,
   AdminDashboardDto,
+  CampaignDto,
   DailyReportDto,
   DashboardSummaryDto,
   MenuItemDto,
@@ -72,16 +73,37 @@ export function getAdminDateRange(days: number) {
 
 export async function getAdminDashboard(baseUrl: string): Promise<AdminDashboardDto> {
   const today = queryDate(new Date());
-  const [tables, activeOrders, categories, menuItems, dailyReport, summary] = await Promise.all([
+  const [tables, activeOrders, categories, menuItems, dailyReport, summary, campaigns] = await Promise.all([
     request<TableDto[]>(baseUrl, "/api/admin/tables"),
     request<OrderDto[]>(baseUrl, "/api/admin/orders/active"),
     request<AdminCategoryDto[]>(baseUrl, "/api/admin/categories"),
     request<MenuItemDto[]>(baseUrl, "/api/admin/menu-items"),
     request<DailyReportDto>(baseUrl, `/api/admin/reports/daily?date=${today}`),
-    request<DashboardSummaryDto>(baseUrl, "/api/admin/reports/dashboard")
+    request<DashboardSummaryDto>(baseUrl, "/api/admin/reports/dashboard"),
+    request<CampaignDto[]>(baseUrl, "/api/admin/campaigns")
   ]);
 
-  return { tables, activeOrders, categories, menuItems, dailyReport, summary };
+  return { tables, activeOrders, categories, menuItems, dailyReport, summary, campaigns };
+}
+
+export type CampaignInput = Omit<CampaignDto, "id">;
+
+export function createCampaign(baseUrl: string, input: CampaignInput) {
+  return request<CampaignDto>(baseUrl, "/api/admin/campaigns", {
+    method: "POST",
+    body: JSON.stringify(input)
+  });
+}
+
+export function updateCampaign(baseUrl: string, id: number, input: CampaignInput) {
+  return request<void>(baseUrl, `/api/admin/campaigns/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(input)
+  });
+}
+
+export function deleteCampaign(baseUrl: string, id: number) {
+  return request<void>(baseUrl, `/api/admin/campaigns/${id}`, { method: "DELETE" });
 }
 
 export async function getAdminAnalytics(baseUrl: string, days: number): Promise<AdminAnalyticsDto> {

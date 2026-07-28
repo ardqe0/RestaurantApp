@@ -25,7 +25,11 @@ public record OrderDto(
     PaymentMethod? RequestedPaymentMethod,
     string? CancellationReason,
     IReadOnlyCollection<OrderItemDto> Items,
-    OrderReviewDto? Review);
+    OrderReviewDto? Review,
+    decimal SubtotalAmount = 0,
+    decimal DiscountAmount = 0,
+    string? CampaignName = null,
+    IReadOnlyCollection<PaymentDto>? Payments = null);
 
 public record OrderItemDto(
     int Id,
@@ -42,7 +46,9 @@ public record UpdateOrderStatusRequest(
 
 public record UpdateOrderItemStatusRequest(OrderItemStatus Status);
 
-public record RequestPaymentRequest(PaymentMethod Method);
+public record RequestPaymentRequest(
+    PaymentMethod Method,
+    [Range(1, 10)] int SplitCount = 1);
 
 public record UpsertOrderReviewRequest(int Rating, string? Comment);
 

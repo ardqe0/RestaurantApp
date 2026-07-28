@@ -59,7 +59,13 @@ public class AdminOrdersController : ControllerBase
                     item.UnitPrice,
                     item.Note,
                     item.Status)).ToList(),
-                null))
+                null,
+                order.SubtotalAmount,
+                order.DiscountAmount,
+                order.CampaignName,
+                order.Payments.OrderBy(payment => payment.Id).Select(payment => new PaymentDto(
+                    payment.Id, payment.OrderId, payment.Amount, payment.Method, payment.Status,
+                    payment.CreatedAt, payment.CompletedAt)).ToList()))
             .ToListAsync();
 
         return Ok(orders);
@@ -89,7 +95,13 @@ public class AdminOrdersController : ControllerBase
                 order.Items.Select(item => new OrderItemDto(item.Id, item.MenuItemId,
                     item.MenuItem == null ? string.Empty : item.MenuItem.Name, item.Quantity,
                     item.UnitPrice, item.Note, item.Status)).ToList(),
-                null))
+                null,
+                order.SubtotalAmount,
+                order.DiscountAmount,
+                order.CampaignName,
+                order.Payments.OrderBy(payment => payment.Id).Select(payment => new PaymentDto(
+                    payment.Id, payment.OrderId, payment.Amount, payment.Method, payment.Status,
+                    payment.CreatedAt, payment.CompletedAt)).ToList()))
             .ToListAsync();
 
         return Ok(orders);

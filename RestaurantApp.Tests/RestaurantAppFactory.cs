@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using RestaurantApp.Data;
 using RestaurantApp.Models;
 
@@ -23,12 +24,19 @@ public sealed class RestaurantAppFactory : WebApplicationFactory<Program>
         Environment.SetEnvironmentVariable("Database__ApplyMigrationsOnStartup", "false");
         Environment.SetEnvironmentVariable("Database__SeedAuthOnStartup", "false");
         Environment.SetEnvironmentVariable("Security__UseHttpsRedirection", "false");
+        Environment.SetEnvironmentVariable("RateLimiting__AuthPermitLimit", "1000");
+        Environment.SetEnvironmentVariable("RateLimiting__CustomerActionPermitLimit", "1000");
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         _connection.Open();
         builder.UseEnvironment("Production");
+        builder.ConfigureLogging(logging =>
+        {
+            logging.ClearProviders();
+            logging.AddConsole();
+        });
         builder.ConfigureAppConfiguration((_, configuration) =>
         {
             configuration.AddInMemoryCollection(new Dictionary<string, string?>
@@ -97,6 +105,8 @@ public sealed class RestaurantAppFactory : WebApplicationFactory<Program>
             Environment.SetEnvironmentVariable("Database__ApplyMigrationsOnStartup", null);
             Environment.SetEnvironmentVariable("Database__SeedAuthOnStartup", null);
             Environment.SetEnvironmentVariable("Security__UseHttpsRedirection", null);
+            Environment.SetEnvironmentVariable("RateLimiting__AuthPermitLimit", null);
+            Environment.SetEnvironmentVariable("RateLimiting__CustomerActionPermitLimit", null);
         }
     }
 }

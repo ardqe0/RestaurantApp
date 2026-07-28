@@ -268,6 +268,7 @@ export default function CustomerScreen({
 
     connection.on("OrderStatusChanged", refreshFromEvent);
     connection.on("OrderItemStatusChanged", refreshFromEvent);
+    connection.on("PaymentStatusChanged", refreshFromEvent);
     connection.onreconnecting(() => active && setRealtimeStatus("fallback"));
     connection.onreconnected(() => active && setRealtimeStatus("connected"));
     connection.onclose(() => active && setRealtimeStatus("fallback"));
@@ -288,6 +289,7 @@ export default function CustomerScreen({
       clearInterval(fallbackTimer);
       connection.off("OrderStatusChanged", refreshFromEvent);
       connection.off("OrderItemStatusChanged", refreshFromEvent);
+      connection.off("PaymentStatusChanged", refreshFromEvent);
       if (connection.state !== HubConnectionState.Disconnected) {
         void connection.stop();
       }
@@ -438,7 +440,12 @@ export default function CustomerScreen({
       setOrderHistory((current) => [createdOrder, ...current.filter((item) => item.id !== createdOrder.id)]);
       completedOrderRef.current = null;
       setCart({});
-      Alert.alert("Siparişiniz alındı", "Yemeğiniz kısa sürede gelecek. Afiyet olsun!");
+      Alert.alert(
+        "Siparişiniz alındı",
+        createdOrder.discountAmount > 0
+          ? `${createdOrder.campaignName ?? "Kampanya"} uygulandı; ${formatCurrency(createdOrder.discountAmount)} indirim kazandınız. Yemeğiniz kısa sürede gelecek. Afiyet olsun!`
+          : "Yemeğiniz kısa sürede gelecek. Afiyet olsun!"
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sipariş gönderilemedi.");
     } finally {
@@ -453,7 +460,7 @@ export default function CustomerScreen({
     setError(null);
   }
 
-  async function askForPayment(method: PaymentMethod) {
+  async function askForPayment(method: PaymentMethod, splitCount: number) {
     if (!order) {
       return;
     }
@@ -462,8 +469,13 @@ export default function CustomerScreen({
     setError(null);
 
     try {
-      await requestPayment(apiBaseUrl.trim(), order.id, method);
-      Alert.alert("Hesap istendi", "Hesabınız kısa sürede gelecektir.");
+      await requestPayment(apiBaseUrl.trim(), order.id, method, splitCount);
+      Alert.alert(
+        "Hesap istendi",
+        splitCount > 1
+          ? `Adisyon ${splitCount} eşit parçaya bölündü. Hesabınız kısa sürede gelecektir.`
+          : "Hesabınız kısa sürede gelecektir."
+      );
       const freshOrder = await getOrder(apiBaseUrl.trim(), order.id);
       setOrder(freshOrder);
     } catch (err) {
@@ -1015,15 +1027,16 @@ function OrderPanel({
   order: OrderDto;
   realtimeStatus: "idle" | "connecting" | "connected" | "fallback";
   isLoading: boolean;
-  onRequestPayment: (method: PaymentMethod) => void;
+  onRequestPayment: (method: PaymentMethod, splitCount: number) => void;
   onStartNewOrder: () => void;
 }) {
   const canRequestPayment = order.status === "Ready" && order.tableStatus !== "WaitingForPayment";
   const [isPaymentPickerOpen, setIsPaymentPickerOpen] = useState(false);
+  const [splitCount, setSplitCount] = useState(1);
 
   function selectPaymentMethod(method: PaymentMethod) {
     setIsPaymentPickerOpen(false);
-    onRequestPayment(method);
+    onRequestPayment(method, splitCount);
   }
 
   return (
@@ -1065,10 +1078,33 @@ function OrderPanel({
         </View>
       ))}
 
+      {order.discountAmount > 0 ? (
+        <>
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>Ara toplam</Text>
+            <Text style={styles.price}>{formatCurrency(order.subtotalAmount)}</Text>
+          </View>
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>{order.campaignName ?? "Kampanya indirimi"}</Text>
+            <Text style={styles.price}>-{formatCurrency(order.discountAmount)}</Text>
+          </View>
+        </>
+      ) : null}
       <View style={styles.totalRow}>
-        <Text style={styles.totalLabel}>Toplam</Text>
+        <Text style={styles.totalLabel}>Ödenecek toplam</Text>
         <Text style={styles.totalValue}>{formatCurrency(order.totalAmount)}</Text>
       </View>
+
+      {order.payments && order.payments.length > 1 ? (
+        <View style={styles.paymentPicker}>
+          <Text style={styles.paymentPickerTitle}>Bölünmüş adisyon</Text>
+          {order.payments.map((payment, index) => (
+            <Text key={payment.id} style={styles.paymentPickerHint}>
+              {index + 1}. parça: {formatCurrency(payment.amount)} · {payment.status === "Completed" ? "Ödendi" : "Ödeme bekliyor"}
+            </Text>
+          ))}
+        </View>
+      ) : null}
 
       {order.status !== "Cancelled" ? <Pressable
         disabled={isLoading || !canRequestPayment}
@@ -1087,7 +1123,15 @@ function OrderPanel({
       {isPaymentPickerOpen ? (
         <View style={styles.paymentPicker}>
           <Text style={styles.paymentPickerTitle}>Neyle ödeme yapmak istersiniz?</Text>
-          <Text style={styles.paymentPickerHint}>Hesabınız kısa sürede gelecektir.</Text>
+          <Text style={styles.paymentPickerHint}>Adisyonu kaç parçaya bölmek istersiniz?</Text>
+          <View style={styles.paymentOptions}>
+            {[1, 2, 3, 4].map(count => (
+              <Pressable key={count} onPress={() => setSplitCount(count)} style={[styles.splitOption, splitCount === count ? styles.splitOptionSelected : null]}>
+                <Text style={[styles.splitOptionText, splitCount === count ? styles.splitOptionTextSelected : null]}>{count === 1 ? "Bölme" : `${count} parça`}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <Text style={styles.paymentPickerHint}>Ödeme yöntemini seçin.</Text>
           <View style={styles.paymentOptions}>
             <Pressable onPress={() => selectPaymentMethod("Cash")} style={styles.paymentOption}>
               <Text style={styles.paymentOptionText}>Nakit</Text>
@@ -1586,6 +1630,27 @@ const styles = StyleSheet.create({
     color: "#ffffff",
     fontSize: 13,
     fontWeight: "800"
+  },
+  splitOption: {
+    alignItems: "center",
+    backgroundColor: "#e8f0ee",
+    borderColor: "#c9d9d5",
+    borderRadius: 8,
+    borderWidth: 1,
+    flex: 1,
+    paddingVertical: 10
+  },
+  splitOptionSelected: {
+    backgroundColor: "#146c5f",
+    borderColor: "#146c5f"
+  },
+  splitOptionText: {
+    color: "#244a43",
+    fontSize: 12,
+    fontWeight: "800"
+  },
+  splitOptionTextSelected: {
+    color: "#ffffff"
   },
   cancelPaymentOption: {
     alignItems: "center",

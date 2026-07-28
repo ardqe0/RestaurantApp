@@ -37,17 +37,12 @@ public class AdminPaymentsController : ControllerBase
     {
         var order = await _dbContext.Orders
             .Include(order => order.Table)
-            .Include(order => order.Payment)
+            .Include(order => order.Payments)
             .FirstOrDefaultAsync(order => order.Id == request.OrderId);
 
         if (order is null)
         {
             return BadRequest("Sipariş bulunamadı.");
-        }
-
-        if (order.Payment is not null)
-        {
-            return BadRequest("Bu sipariş için ödeme zaten alınmış.");
         }
 
         if (order.Status == OrderStatus.Cancelled)
@@ -65,34 +60,62 @@ public class AdminPaymentsController : ControllerBase
             return BadRequest("Müşterinin hesap isteği ve ödeme tercihi bekleniyor.");
         }
 
-        if (request.Method != order.RequestedPaymentMethod)
+        // Migration öncesinde hesap istenmiş ancak henüz ödeme kaydı oluşmamış
+        // siparişleri eski mobil sürümlerle geriye uyumlu biçimde tamamlar.
+        if (order.Payments.Count == 0 && request.PaymentId is null)
         {
-            return BadRequest("Ödeme yöntemi müşterinin seçtiği yöntemle aynı olmalıdır.");
+            order.Payments.Add(new Payment
+            {
+                OrderId = order.Id,
+                Amount = order.TotalAmount,
+                Method = request.Method,
+                Status = PaymentStatus.Pending,
+                CreatedAt = DateTime.UtcNow
+            });
         }
 
-        var payment = new Payment
-        {
-            OrderId = order.Id,
-            Amount = order.TotalAmount,
-            Method = request.Method,
-            Status = PaymentStatus.Completed,
-            CreatedAt = DateTime.UtcNow
-        };
+        var payment = request.PaymentId is not null
+            ? order.Payments.FirstOrDefault(item => item.Id == request.PaymentId)
+            : order.Payments
+                .Where(item => item.Status == PaymentStatus.Pending && item.Method == request.Method)
+                .OrderBy(item => item.Id)
+                .FirstOrDefault();
 
-        order.Payment = payment;
-        order.Status = OrderStatus.Delivered;
+        if (payment is null)
+        {
+            return BadRequest("Ödenecek adisyon parçası bulunamadı.");
+        }
+
+        if (payment.Status == PaymentStatus.Completed)
+        {
+            return BadRequest("Bu adisyon parçası daha önce ödendi.");
+        }
+
+        if (request.Method != payment.Method)
+        {
+            return BadRequest("Ödeme yöntemi bu adisyon parçası için seçilen yöntemle aynı olmalıdır.");
+        }
+
+        payment.Status = PaymentStatus.Completed;
+        payment.CompletedAt = DateTime.UtcNow;
         order.UpdatedAt = DateTime.UtcNow;
+        var allPaymentsCompleted = order.Payments.All(item =>
+            item.Id == payment.Id || item.Status == PaymentStatus.Completed);
         var resolvedWaiterCalls = new List<WaiterCall>();
 
-        if (order.Table is not null)
+        if (allPaymentsCompleted)
         {
-            order.Table.Status = TableStatus.Empty;
-            resolvedWaiterCalls = await _dbContext.WaiterCalls
-                .Where(call => call.TableId == order.Table.Id && call.ResolvedAt == null)
-                .ToListAsync();
-            foreach (var waiterCall in resolvedWaiterCalls)
+            order.Status = OrderStatus.Delivered;
+            if (order.Table is not null)
             {
-                waiterCall.ResolvedAt = DateTime.UtcNow;
+                order.Table.Status = TableStatus.Empty;
+                resolvedWaiterCalls = await _dbContext.WaiterCalls
+                    .Where(call => call.TableId == order.Table.Id && call.ResolvedAt == null)
+                    .ToListAsync();
+                foreach (var waiterCall in resolvedWaiterCalls)
+                {
+                    waiterCall.ResolvedAt = DateTime.UtcNow;
+                }
             }
         }
 
@@ -107,25 +130,33 @@ public class AdminPaymentsController : ControllerBase
                 payment.Method,
                 payment.Status,
                 OrderStatus = order.Status,
-                TableStatus = order.Table?.Status
+                TableStatus = order.Table?.Status,
+                AllPaymentsCompleted = allPaymentsCompleted
             });
         await _dbContext.SaveChangesAsync();
 
-        var dto = new PaymentDto(payment.Id, payment.OrderId, payment.Amount, payment.Method, payment.Status, payment.CreatedAt);
+        var dto = new PaymentDto(
+            payment.Id, payment.OrderId, payment.Amount, payment.Method, payment.Status,
+            payment.CreatedAt, payment.CompletedAt);
 
-        await _hubContext.SendToOrderAudienceAsync("OrderStatusChanged", new OrderStatusChangedEvent(
-            order.Id,
-            order.Status,
-            order.UpdatedAt),
-            order.CustomerUserId);
-        await _notificationService.SendOrderStatusAsync(order.Id, order.Status);
+        await _hubContext.SendToOrderAudienceAsync("PaymentStatusChanged", dto, order.CustomerUserId);
 
-        if (order.Table is not null)
+        if (allPaymentsCompleted)
         {
-            await _hubContext.SendToOperationsAsync("TableStatusChanged", new TableStatusChangedEvent(
-                order.Table.Id,
-                order.Table.Number,
-                order.Table.Status));
+            await _hubContext.SendToOrderAudienceAsync("OrderStatusChanged", new OrderStatusChangedEvent(
+                order.Id,
+                order.Status,
+                order.UpdatedAt),
+                order.CustomerUserId);
+            await _notificationService.SendOrderStatusAsync(order.Id, order.Status);
+
+            if (order.Table is not null)
+            {
+                await _hubContext.SendToOperationsAsync("TableStatusChanged", new TableStatusChangedEvent(
+                    order.Table.Id,
+                    order.Table.Number,
+                    order.Table.Status));
+            }
         }
         foreach (var waiterCall in resolvedWaiterCalls)
         {
@@ -144,13 +175,15 @@ public class AdminPaymentsController : ControllerBase
         var payment = await _dbContext.Payments
             .AsNoTracking()
             .Where(payment => payment.OrderId == orderId)
+            .OrderByDescending(payment => payment.CompletedAt)
             .Select(payment => new PaymentDto(
                 payment.Id,
                 payment.OrderId,
                 payment.Amount,
                 payment.Method,
                 payment.Status,
-                payment.CreatedAt))
+                payment.CreatedAt,
+                payment.CompletedAt))
             .FirstOrDefaultAsync();
 
         return payment is null ? NotFound() : Ok(payment);
