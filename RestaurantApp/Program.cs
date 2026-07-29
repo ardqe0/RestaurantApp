@@ -3,6 +3,7 @@ using System.Security.Claims;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
@@ -154,6 +155,8 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<AuditLogService>();
 builder.Services.AddHttpClient<OrderPushNotificationService>();
 builder.Services.AddSignalR();
+builder.Services.AddHealthChecks()
+    .AddCheck<DatabaseHealthCheck>("database", tags: ["ready"]);
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("FrontendApps", policy => policy
@@ -214,6 +217,7 @@ app.Use(async (context, next) =>
 
     context.Response.Headers.Append("X-Content-Type-Options", "nosniff");
     context.Response.Headers.Append("X-Frame-Options", "DENY");
+    context.Response.Headers.Append("X-Request-ID", context.TraceIdentifier);
     context.Response.Headers.Append("Referrer-Policy", "strict-origin-when-cross-origin");
     context.Response.Headers.Append("Permissions-Policy", "camera=(self), microphone=(), geolocation=()");
     context.Response.Headers.Append(
@@ -315,6 +319,14 @@ app.UseStaticFiles();
 
 app.MapControllers();
 app.MapHub<OrderHub>("/hubs/orders");
+app.MapHealthChecks("/health/live", new HealthCheckOptions
+{
+    Predicate = _ => false
+});
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("ready")
+});
 app.MapFallbackToFile("/admin/{*path:nonfile}", "admin/index.html");
 app.MapFallbackToFile("/customer/{*path:nonfile}", "customer/index.html");
 app.MapFallbackToFile("/kitchen/{*path:nonfile}", "kitchen/index.html");

@@ -1,10 +1,11 @@
 import type { MenuCategoryDto, OrderDto, OrderReviewDto, PaymentMethod, TableDto, WaiterCallDto } from "./types";
 import { getAuthorizationHeaders } from "./auth";
+import { ApiError, fetchApi, readApiError } from "./http";
 export { defaultApiBaseUrl } from "./config";
 
 async function request<T>(baseUrl: string, path: string, options?: RequestInit): Promise<T> {
   const authorizationHeaders = await getAuthorizationHeaders();
-  const response = await fetch(`${baseUrl}${path}`, {
+  const response = await fetchApi(`${baseUrl}${path}`, {
     credentials: "include",
     ...options,
     headers: {
@@ -15,12 +16,9 @@ async function request<T>(baseUrl: string, path: string, options?: RequestInit):
   });
 
   if (!response.ok) {
-    if (response.status === 404) {
-      throw new Error("QR kodundaki masa bulunamadı. Lütfen masadaki güncel QR kodunu okutun.");
-    }
-
-    const message = await response.text();
-    throw new Error(message || `İstek başarısız oldu: ${response.status}`);
+    throw new ApiError(await readApiError(response, {
+      404: "QR kodundaki masa bulunamadı. Lütfen masadaki güncel QR kodunu okutun."
+    }), response.status);
   }
 
   if (response.status === 204) {

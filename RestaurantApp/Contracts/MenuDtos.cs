@@ -15,9 +15,12 @@ public record MenuItemDto(
     string? ImageUrl,
     bool IsAvailable,
     int PreparationMinutes,
-    IReadOnlyCollection<MenuItemOptionDto>? Options = null);
+    IReadOnlyCollection<MenuItemOptionDto>? Options = null,
+    int StockQuantity = 0);
 
 public record MenuItemOptionDto(
     int Id,
     string Name,
-    decimal AdditionalPrice);
+    decimal AdditionalPrice,
+    bool IsActive = true,
+    int DisplayOrder = 0);

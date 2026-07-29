@@ -5,6 +5,7 @@ import {
   ApiError,
   createCampaign,
   createCategory,
+  createMenuItemOption,
   createMenuItem,
   createTable,
   deleteCategory,
@@ -17,6 +18,7 @@ import {
   updateCategory,
   updateCampaign,
   updateMenuItem,
+  updateMenuItemOption,
   updateOrderStatus,
   updateTable
 } from "./api";
@@ -26,6 +28,7 @@ import type {
   Category,
   DashboardData,
   MenuItem,
+  MenuItemOption,
   Order,
   OrderStatus,
   RestaurantTable,
@@ -85,6 +88,7 @@ sevenDaysAgo.setDate(today.getDate() - 6);
 
 type CategoryDraft = Omit<Category, "id"> & { id: number | null };
 type MenuItemDraft = Omit<MenuItem, "id"> & { id: number | null };
+type MenuItemOptionDraft = Omit<MenuItemOption, "id"> & { id: number | null; menuItemId: number };
 type TableDraft = Omit<RestaurantTable, "id"> & { id: number | null };
 type CampaignDraft = Omit<Campaign, "id"> & { id: number | null };
 
@@ -97,7 +101,16 @@ const emptyMenuItemDraft: MenuItemDraft = {
   price: 0,
   imageUrl: "",
   isAvailable: true,
+  stockQuantity: 100,
   preparationMinutes: 15
+};
+const emptyMenuItemOptionDraft: MenuItemOptionDraft = {
+  id: null,
+  menuItemId: 0,
+  name: "",
+  additionalPrice: 0,
+  displayOrder: 1,
+  isActive: true
 };
 const emptyTableDraft: TableDraft = {
   id: null,
@@ -170,6 +183,7 @@ export default function App() {
   const [orderStatusFilter, setOrderStatusFilter] = useState<"all" | OrderStatus>("all");
   const [categoryDraft, setCategoryDraft] = useState<CategoryDraft>(emptyCategoryDraft);
   const [menuItemDraft, setMenuItemDraft] = useState<MenuItemDraft>(emptyMenuItemDraft);
+  const [menuItemOptionDraft, setMenuItemOptionDraft] = useState<MenuItemOptionDraft>(emptyMenuItemOptionDraft);
   const [tableDraft, setTableDraft] = useState<TableDraft>(emptyTableDraft);
   const [campaignDraft, setCampaignDraft] = useState<CampaignDraft>(emptyCampaignDraft);
   const [customerQrAddress, setCustomerQrAddress] = useState(getInitialQrAddress);
@@ -194,6 +208,12 @@ export default function App() {
       return tableMatches && statusMatches;
     });
   }, [data, orderStatusFilter, orderTableFilter]);
+  const lowStockItems = useMemo(
+    () => [...(data?.menuItems ?? [])]
+      .filter(item => item.stockQuantity <= 10)
+      .sort((left, right) => left.stockQuantity - right.stockQuantity || left.name.localeCompare(right.name)),
+    [data?.menuItems]
+  );
 
   const handleError = useCallback((reason: unknown) => {
     if (reason instanceof ApiError && (reason.status === 401 || reason.status === 403)) {
@@ -276,6 +296,7 @@ export default function App() {
     connection.on("OrderItemStatusChanged", refreshFromEvent);
     connection.on("TableStatusChanged", refreshFromEvent);
     connection.on("PaymentStatusChanged", refreshFromEvent);
+    connection.on("MenuStockChanged", refreshFromEvent);
     connection.onreconnecting(() => active && setRealtimeStatus("fallback"));
     connection.onreconnected(() => {
       if (!active) return;
@@ -307,6 +328,7 @@ export default function App() {
       connection.off("OrderItemStatusChanged", refreshFromEvent);
       connection.off("TableStatusChanged", refreshFromEvent);
       connection.off("PaymentStatusChanged", refreshFromEvent);
+      connection.off("MenuStockChanged", refreshFromEvent);
       if (connection.state !== HubConnectionState.Disconnected) {
         void connection.stop();
       }
@@ -317,6 +339,11 @@ export default function App() {
     if (!data?.categories.length || menuItemDraft.categoryId !== 0) return;
     setMenuItemDraft(current => ({ ...current, categoryId: data.categories[0].id }));
   }, [data?.categories, menuItemDraft.categoryId]);
+
+  useEffect(() => {
+    if (!data?.menuItems.length || menuItemOptionDraft.menuItemId !== 0) return;
+    setMenuItemOptionDraft(current => ({ ...current, menuItemId: data.menuItems[0].id }));
+  }, [data?.menuItems, menuItemOptionDraft.menuItemId]);
 
   useEffect(() => {
     window.localStorage.setItem(qrAddressStorageKey, customerQrAddress);
@@ -362,12 +389,34 @@ export default function App() {
       price: menuItemDraft.price,
       imageUrl: menuItemDraft.imageUrl?.trim() || null,
       isAvailable: menuItemDraft.isAvailable,
+      stockQuantity: menuItemDraft.stockQuantity,
       preparationMinutes: menuItemDraft.preparationMinutes
     };
     void runAction("item-save", async () => {
       if (menuItemDraft.id === null) await createMenuItem(payload);
       else await updateMenuItem(menuItemDraft.id, payload);
       setMenuItemDraft({ ...emptyMenuItemDraft, categoryId: data?.categories[0]?.id ?? 0 });
+    });
+  };
+
+  const handleMenuItemOptionSubmit = (event: FormEvent) => {
+    event.preventDefault();
+    const payload = {
+      name: menuItemOptionDraft.name.trim(),
+      additionalPrice: menuItemOptionDraft.additionalPrice,
+      displayOrder: menuItemOptionDraft.displayOrder,
+      isActive: menuItemOptionDraft.isActive
+    };
+    void runAction("option-save", async () => {
+      if (menuItemOptionDraft.id === null) {
+        await createMenuItemOption(menuItemOptionDraft.menuItemId, payload);
+      } else {
+        await updateMenuItemOption(menuItemOptionDraft.id, payload);
+      }
+      setMenuItemOptionDraft({
+        ...emptyMenuItemOptionDraft,
+        menuItemId: data?.menuItems[0]?.id ?? 0
+      });
     });
   };
 
@@ -760,6 +809,21 @@ export default function App() {
             </Section>
 
             <Section title="Menü yönetimi" description="Kategori ve ürün işlemleri">
+              {lowStockItems.length > 0 && (
+                <div className="stock-alert-panel">
+                  <div>
+                    <strong>Düşük stok uyarısı</strong>
+                    <small>{lowStockItems.length} ürünün stoğu 10 veya altında.</small>
+                  </div>
+                  <div className="stock-alert-items">
+                    {lowStockItems.map(item => (
+                      <span className={item.stockQuantity <= 5 ? "critical" : "low"} key={item.id}>
+                        {item.name}: {item.stockQuantity}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="management-grid">
                 <div className="management-column">
                   <div className="subsection-head"><h3>Kategoriler</h3><span>{data.categories.length} kayıt</span></div>
@@ -794,6 +858,7 @@ export default function App() {
                     <label>Ürün adı<input value={menuItemDraft.name} onChange={event => setMenuItemDraft({ ...menuItemDraft, name: event.target.value })} required /></label>
                     <label>Fiyat<input type="number" min="0" step="0.01" value={menuItemDraft.price} onChange={event => setMenuItemDraft({ ...menuItemDraft, price: Number(event.target.value) })} required /></label>
                     <label>Hazırlık süresi<input type="number" min="0" value={menuItemDraft.preparationMinutes} onChange={event => setMenuItemDraft({ ...menuItemDraft, preparationMinutes: Number(event.target.value) })} required /></label>
+                    <label>Stok adedi<input type="number" min="0" step="1" value={menuItemDraft.stockQuantity} onChange={event => setMenuItemDraft({ ...menuItemDraft, stockQuantity: Number(event.target.value) })} required /></label>
                     <label className="full-field">Açıklama<textarea value={menuItemDraft.description} onChange={event => setMenuItemDraft({ ...menuItemDraft, description: event.target.value })} /></label>
                     <label className="full-field">Görsel yolu<input value={menuItemDraft.imageUrl ?? ""} onChange={event => setMenuItemDraft({ ...menuItemDraft, imageUrl: event.target.value })} placeholder="/images/menu/hamburger.jpg" /></label>
                     <label className="checkbox-label full-field"><input type="checkbox" checked={menuItemDraft.isAvailable} onChange={event => setMenuItemDraft({ ...menuItemDraft, isAvailable: event.target.checked })} /> Satışta</label>
@@ -807,7 +872,7 @@ export default function App() {
                     {data.menuItems.map(item => (
                       <div className="entity-row" key={item.id}>
                         {item.imageUrl ? <img className="product-thumb" src={item.imageUrl} alt="" /> : <span className="product-placeholder">🍽</span>}
-                        <div className="entity-main"><strong>{item.name}</strong><small>{data.categories.find(category => category.id === item.categoryId)?.name ?? "Kategorisiz"} · {money.format(item.price)} · {item.isAvailable ? "Satışta" : "Pasif"}</small></div>
+                        <div className="entity-main"><strong>{item.name}</strong><small>{data.categories.find(category => category.id === item.categoryId)?.name ?? "Kategorisiz"} · {money.format(item.price)} · Stok {item.stockQuantity} · {item.isAvailable ? "Satışta" : "Pasif"}</small></div>
                         <div className="row-actions">
                           <button className="icon-button edit" type="button" onClick={() => setMenuItemDraft({ ...item })}>Düzenle</button>
                           <button className="icon-button danger" type="button" onClick={() => {
@@ -817,6 +882,28 @@ export default function App() {
                       </div>
                     ))}
                   </div>
+                </div>
+              </div>
+              <div className="option-management">
+                <div className="subsection-head"><h3>Ekstra seçenekler</h3><span>Ürüne bağlı ek ücretler</span></div>
+                <form className="editor-form option-form" onSubmit={handleMenuItemOptionSubmit}>
+                  <label>Ürün<select value={menuItemOptionDraft.menuItemId} onChange={event => setMenuItemOptionDraft({ ...menuItemOptionDraft, menuItemId: Number(event.target.value) })} required>{data.menuItems.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+                  <label>Seçenek adı<input value={menuItemOptionDraft.name} onChange={event => setMenuItemOptionDraft({ ...menuItemOptionDraft, name: event.target.value })} placeholder="Ekstra kaşarlı" required /></label>
+                  <label>Ek fiyat<input type="number" min="0" step="0.01" value={menuItemOptionDraft.additionalPrice} onChange={event => setMenuItemOptionDraft({ ...menuItemOptionDraft, additionalPrice: Number(event.target.value) })} required /></label>
+                  <label>Sıra<input type="number" min="0" value={menuItemOptionDraft.displayOrder} onChange={event => setMenuItemOptionDraft({ ...menuItemOptionDraft, displayOrder: Number(event.target.value) })} required /></label>
+                  <label className="checkbox-label"><input type="checkbox" checked={menuItemOptionDraft.isActive} onChange={event => setMenuItemOptionDraft({ ...menuItemOptionDraft, isActive: event.target.checked })} /> Müşteriye göster</label>
+                  <div className="form-actions">
+                    <button className="button primary" disabled={busyAction === "option-save" || data.menuItems.length === 0} type="submit">{menuItemOptionDraft.id === null ? "Seçenek ekle" : "Seçeneği güncelle"}</button>
+                    {menuItemOptionDraft.id !== null && <button className="button secondary" type="button" onClick={() => setMenuItemOptionDraft({ ...emptyMenuItemOptionDraft, menuItemId: data.menuItems[0]?.id ?? 0 })}>İptal</button>}
+                  </div>
+                </form>
+                <div className="entity-list option-list">
+                  {data.menuItems.flatMap(item => (item.options ?? []).map(option => ({ item, option }))).length === 0 ? <EmptyState>Henüz ekstra seçenek eklenmedi.</EmptyState> : data.menuItems.flatMap(item => (item.options ?? []).map(option => ({ item, option }))).map(({ item, option }) => (
+                    <div className="entity-row" key={option.id}>
+                      <div><strong>{option.name}</strong><small>{item.name} · {money.format(option.additionalPrice)} · Sıra {option.displayOrder} · {option.isActive ? "Aktif" : "Pasif"}</small></div>
+                      <div className="row-actions"><button className="icon-button edit" type="button" onClick={() => setMenuItemOptionDraft({ ...option, menuItemId: item.id })}>Düzenle</button></div>
+                    </div>
+                  ))}
                 </div>
               </div>
             </Section>

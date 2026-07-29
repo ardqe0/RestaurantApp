@@ -137,6 +137,12 @@ public class AdminOrdersController : ControllerBase
 
         var previousStatus = order.Status;
         var previousCancellationReason = order.CancellationReason;
+        var shouldRestoreStock = request.Status == OrderStatus.Cancelled
+            && previousStatus == OrderStatus.Pending
+            && order.Items.All(item => item.Status == OrderItemStatus.Pending);
+        var restoredMenuItemIds = shouldRestoreStock
+            ? order.Items.Select(item => item.MenuItemId).Distinct().ToList()
+            : [];
         var changedItems = new List<OrderItem>();
         if (request.Status == OrderStatus.Preparing)
         {
@@ -186,7 +192,27 @@ public class AdminOrdersController : ControllerBase
             order.Id.ToString(),
             new { Status = previousStatus, CancellationReason = previousCancellationReason },
             new { order.Status, order.CancellationReason });
-        await _dbContext.SaveChangesAsync();
+
+        var executionStrategy = _dbContext.Database.CreateExecutionStrategy();
+        await executionStrategy.ExecuteAsync(async () =>
+        {
+            await using var transaction = await _dbContext.Database.BeginTransactionAsync();
+            if (shouldRestoreStock)
+            {
+                foreach (var itemGroup in order.Items.GroupBy(item => item.MenuItemId))
+                {
+                    var quantity = itemGroup.Sum(item => item.Quantity);
+                    await _dbContext.MenuItems
+                        .Where(item => item.Id == itemGroup.Key)
+                        .ExecuteUpdateAsync(setters => setters
+                            .SetProperty(item => item.StockQuantity, item => item.StockQuantity + quantity)
+                            .SetProperty(item => item.IsAvailable, true));
+                }
+            }
+
+            await _dbContext.SaveChangesAsync();
+            await transaction.CommitAsync();
+        });
 
         foreach (var item in changedItems)
         {
@@ -218,6 +244,22 @@ public class AdminOrdersController : ControllerBase
                 "WaiterCallResolved",
                 new { waiterCall.Id, waiterCall.TableId },
                 waiterCall.CustomerUserId);
+        }
+
+        if (restoredMenuItemIds.Count > 0)
+        {
+            var restoredStocks = await _dbContext.MenuItems
+                .AsNoTracking()
+                .Where(item => restoredMenuItemIds.Contains(item.Id))
+                .Select(item => new MenuStockChangedEvent(
+                    item.Id,
+                    item.StockQuantity,
+                    item.IsAvailable))
+                .ToListAsync();
+            foreach (var restoredStock in restoredStocks)
+            {
+                await _hubContext.SendMenuStockChangedAsync(restoredStock);
+            }
         }
 
         return NoContent();

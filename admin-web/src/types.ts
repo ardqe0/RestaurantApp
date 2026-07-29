@@ -35,7 +35,17 @@ export interface MenuItem {
   price: number;
   imageUrl: string | null;
   isAvailable: boolean;
+  stockQuantity: number;
   preparationMinutes: number;
+  options?: MenuItemOption[];
+}
+
+export interface MenuItemOption {
+  id: number;
+  name: string;
+  additionalPrice: number;
+  isActive: boolean;
+  displayOrder: number;
 }
 
 export interface RestaurantTable {

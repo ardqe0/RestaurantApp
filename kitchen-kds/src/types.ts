@@ -49,3 +49,11 @@ export type WaiterCallDto = {
   createdAt: string;
   resolvedAt?: string | null;
 };
+
+export type InventoryItemDto = {
+  id: number;
+  categoryName: string;
+  name: string;
+  stockQuantity: number;
+  isAvailable: boolean;
+};

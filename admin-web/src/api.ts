@@ -8,6 +8,7 @@ import type {
   DashboardData,
   DashboardSummary,
   MenuItem,
+  MenuItemOption,
   Order,
   OrderStatus,
   RestaurantTable,
@@ -27,24 +28,55 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const response = await fetch(path, {
-    credentials: "include",
-    ...init,
-    headers: {
-      ...(init.body ? { "Content-Type": "application/json" } : {}),
-      ...init.headers
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 15_000);
+  let response: Response;
+
+  try {
+    response = await fetch(path, {
+      credentials: "include",
+      ...init,
+      signal: controller.signal,
+      headers: {
+        ...(init.body ? { "Content-Type": "application/json" } : {}),
+        ...init.headers
+      }
+    });
+  } catch (reason) {
+    if (controller.signal.aborted) {
+      throw new ApiError("Sunucu 15 saniye içinde yanıt vermedi. Lütfen tekrar deneyin.", 0);
     }
-  });
+    if (reason instanceof TypeError) {
+      throw new ApiError("Sunucuya ulaşılamadı. İnternet bağlantınızı kontrol edin.", 0);
+    }
+    throw reason;
+  } finally {
+    window.clearTimeout(timeout);
+  }
 
   if (!response.ok) {
     const contentType = response.headers.get("content-type") ?? "";
     const body = contentType.includes("application/json")
       ? await response.json().catch(() => null)
       : await response.text().catch(() => "");
-    const message = typeof body === "string"
+    const safeText = typeof body === "string"
+      && body.length <= 300
+      && !/<html|<!doctype/i.test(body)
       ? body
-      : body?.detail ?? body?.title ?? "İşlem tamamlanamadı.";
-    throw new ApiError(message || `İstek başarısız oldu: ${response.status}`, response.status);
+      : "";
+    const message = typeof body === "string"
+      ? safeText
+      : body?.detail ?? body?.title ?? "";
+    const fallback = response.status === 401
+      ? "Oturumunuz sona erdi. Lütfen tekrar giriş yapın."
+      : response.status === 403
+        ? "Bu işlem için yetkiniz yok."
+        : response.status === 429
+          ? "Çok fazla istek gönderildi. Lütfen kısa süre sonra tekrar deneyin."
+          : response.status >= 500
+            ? "Sunucuda geçici bir sorun oluştu. Lütfen tekrar deneyin."
+            : `İstek başarısız oldu: ${response.status}`;
+    throw new ApiError(message || fallback, response.status);
   }
 
   if (response.status === 204) return undefined as T;
@@ -103,6 +135,18 @@ export const updateMenuItem = (id: number, payload: MenuItemPayload) =>
   request<void>(`/api/admin/menu-items/${id}`, { method: "PUT", body: JSON.stringify(payload) });
 export const deleteMenuItem = (id: number) =>
   request<void>(`/api/admin/menu-items/${id}`, { method: "DELETE" });
+
+export type MenuItemOptionPayload = Omit<MenuItemOption, "id">;
+export const createMenuItemOption = (menuItemId: number, payload: MenuItemOptionPayload) =>
+  request<MenuItemOption>(`/api/admin/menu-items/${menuItemId}/options`, {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+export const updateMenuItemOption = (id: number, payload: MenuItemOptionPayload) =>
+  request<void>(`/api/admin/menu-item-options/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(payload)
+  });
 
 export interface TablePayload {
   number: number;

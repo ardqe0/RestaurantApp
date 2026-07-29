@@ -12,18 +12,22 @@ import {
   View
 } from "react-native";
 import {
+  adjustInventory,
   cancelOrder,
   createPayment,
   defaultApiBaseUrl,
   getActiveOrders,
   getActiveWaiterCalls,
   getCurrentUser,
+  getInventory,
   resolveWaiterCall,
+  setInventoryAvailability,
+  setInventoryStock,
   signOut,
   splitPayment,
   updateItemStatus
 } from "./src/api";
-import type { OrderDto, OrderItemDto, OrderItemStatus, PaymentDto, PaymentMethod, WaiterCallDto } from "./src/types";
+import type { InventoryItemDto, OrderDto, OrderItemDto, OrderItemStatus, PaymentDto, PaymentMethod, WaiterCallDto } from "./src/types";
 
 const overdueWarningMinutes = 15;
 const criticalWarningMinutes = 20;
@@ -33,11 +37,13 @@ export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [orders, setOrders] = useState<OrderDto[]>([]);
   const [waiterCalls, setWaiterCalls] = useState<WaiterCallDto[]>([]);
+  const [inventory, setInventory] = useState<InventoryItemDto[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [updatingItemId, setUpdatingItemId] = useState<number | null>(null);
   const [payingOrderId, setPayingOrderId] = useState<number | null>(null);
   const [splittingOrderId, setSplittingOrderId] = useState<number | null>(null);
   const [resolvingWaiterCallId, setResolvingWaiterCallId] = useState<number | null>(null);
+  const [updatingStockId, setUpdatingStockId] = useState<number | null>(null);
   const [cancellingOrderId, setCancellingOrderId] = useState<number | null>(null);
   const [cancellationReason, setCancellationReason] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -68,9 +74,10 @@ export default function App() {
   const loadOrders = useCallback(async (showSpinner = true) => {
     if (showSpinner) setIsLoading(true);
     try {
-      const [activeOrdersResponse, activeWaiterCalls] = await Promise.all([
+      const [activeOrdersResponse, activeWaiterCalls, currentInventory] = await Promise.all([
         getActiveOrders(apiBaseUrl.trim()),
-        getActiveWaiterCalls(apiBaseUrl.trim())
+        getActiveWaiterCalls(apiBaseUrl.trim()),
+        getInventory(apiBaseUrl.trim())
       ]);
       const activeOrders = [...activeOrdersResponse].sort(
         (left, right) => new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime()
@@ -91,6 +98,7 @@ export default function App() {
       newlyOverdueOrders.forEach((order) => overdueAlertedOrderIds.current.add(order.id));
       setOrders(activeOrders);
       setWaiterCalls(activeWaiterCalls);
+      setInventory(currentInventory);
       setClock(currentTime);
       setError(null);
 
@@ -147,6 +155,7 @@ export default function App() {
     connection.on("PaymentStatusChanged", refreshFromEvent);
     connection.on("WaiterCallCreated", refreshFromEvent);
     connection.on("WaiterCallResolved", refreshFromEvent);
+    connection.on("MenuStockChanged", refreshFromEvent);
 
     connection.start()
       .then(() => void loadOrders(false))
@@ -161,6 +170,7 @@ export default function App() {
       connection.off("PaymentStatusChanged", refreshFromEvent);
       connection.off("WaiterCallCreated", refreshFromEvent);
       connection.off("WaiterCallResolved", refreshFromEvent);
+      connection.off("MenuStockChanged", refreshFromEvent);
       if (connection.state !== HubConnectionState.Disconnected) {
         void connection.stop();
       }
@@ -269,6 +279,39 @@ export default function App() {
     (order) => isKitchenOrderWaiting(order)
       && getWaitingMinutes(order.createdAt, clock) >= criticalWarningMinutes
   ).length;
+  const lowStockCount = inventory.filter((item) => item.stockQuantity <= 10).length;
+
+  async function runStockAction(
+    itemId: number,
+    action: () => Promise<InventoryItemDto>
+  ) {
+    setUpdatingStockId(itemId);
+    try {
+      const updated = await action();
+      setInventory((current) => current
+        .map((item) => item.id === updated.id ? updated : item)
+        .sort((left, right) => left.stockQuantity - right.stockQuantity || left.name.localeCompare(right.name)));
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Stok güncellenemedi.");
+    } finally {
+      setUpdatingStockId(null);
+    }
+  }
+
+  function handleInventoryAction(item: InventoryItemDto, action: InventoryAction) {
+    const baseUrl = apiBaseUrl.trim();
+    const request = action === "add-one"
+      ? () => adjustInventory(baseUrl, item.id, 1)
+      : action === "add-five"
+        ? () => adjustInventory(baseUrl, item.id, 5)
+        : item.isAvailable
+          ? () => setInventoryStock(baseUrl, item.id, 0)
+          : item.stockQuantity > 0
+            ? () => setInventoryAvailability(baseUrl, item.id, true)
+            : () => adjustInventory(baseUrl, item.id, 1);
+    void runStockAction(item.id, request);
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -321,6 +364,80 @@ export default function App() {
             </Text>
           </View>
         ) : null}
+
+        {false ? <View style={styles.inventoryPanel}>
+          <View style={styles.inventoryHeader}>
+            <View style={styles.flex}>
+              <Text style={styles.inventoryTitle}>Hızlı stok yönetimi</Text>
+              <Text style={styles.inventoryHint}>
+                {lowStockCount > 0 ? `${lowStockCount} ürün için stok uyarısı var.` : "Stok seviyeleri normal."}
+              </Text>
+            </View>
+            {lowStockCount > 0 ? (
+              <View style={styles.inventoryWarningBadge}>
+                <Text style={styles.inventoryWarningBadgeText}>{lowStockCount}</Text>
+              </View>
+            ) : null}
+          </View>
+          {inventory.map((item) => {
+            const isUpdatingStock = updatingStockId === item.id;
+            const isCriticalStock = item.stockQuantity <= 5;
+            const isLowStock = item.stockQuantity > 5 && item.stockQuantity <= 10;
+            return (
+              <View
+                key={item.id}
+                style={[
+                  styles.inventoryRow,
+                  isLowStock ? styles.inventoryRowLow : null,
+                  isCriticalStock ? styles.inventoryRowCritical : null
+                ]}
+              >
+                <View style={styles.flex}>
+                  <Text style={styles.inventoryItemName}>{item.name}</Text>
+                  <Text style={styles.inventoryItemMeta}>
+                    {item.categoryName} · Stok: {item.stockQuantity} · {item.isAvailable ? "Satışta" : "Satışta değil"}
+                  </Text>
+                </View>
+                <View style={styles.inventoryActions}>
+                  <Pressable
+                    disabled={isUpdatingStock}
+                    onPress={() => void runStockAction(item.id, () => adjustInventory(apiBaseUrl.trim(), item.id, 1))}
+                    style={[styles.inventoryActionButton, isUpdatingStock ? styles.disabled : null]}
+                  >
+                    <Text style={styles.inventoryActionText}>+1</Text>
+                  </Pressable>
+                  <Pressable
+                    disabled={isUpdatingStock}
+                    onPress={() => void runStockAction(item.id, () => adjustInventory(apiBaseUrl.trim(), item.id, 5))}
+                    style={[styles.inventoryActionButton, isUpdatingStock ? styles.disabled : null]}
+                  >
+                    <Text style={styles.inventoryActionText}>+5</Text>
+                  </Pressable>
+                  <Pressable
+                    disabled={isUpdatingStock}
+                    onPress={() => void runStockAction(
+                      item.id,
+                      () => item.isAvailable
+                        ? setInventoryStock(apiBaseUrl.trim(), item.id, 0)
+                        : item.stockQuantity > 0
+                          ? setInventoryAvailability(apiBaseUrl.trim(), item.id, true)
+                          : adjustInventory(apiBaseUrl.trim(), item.id, 1)
+                    )}
+                    style={[
+                      styles.inventoryAvailabilityButton,
+                      !item.isAvailable ? styles.inventoryOpenButton : null,
+                      isUpdatingStock ? styles.disabled : null
+                    ]}
+                  >
+                    <Text style={styles.inventoryAvailabilityText}>
+                      {isUpdatingStock ? "…" : item.isAvailable ? "Tükendi" : "Satışa aç"}
+                    </Text>
+                  </Pressable>
+                </View>
+              </View>
+            );
+          })}
+        </View> : null}
 
         {waiterCalls.length > 0 ? (
           <View style={styles.waiterCallsPanel}>
@@ -403,6 +520,12 @@ export default function App() {
           </View>
           );
         })}
+        <InventoryManagementPanel
+          inventory={inventory}
+          lowStockCount={lowStockCount}
+          updatingStockId={updatingStockId}
+          onAction={handleInventoryAction}
+        />
         {cancellingOrderId ? (
           <View style={styles.cancelModalBackdrop}><View style={styles.cancelModal}><Text style={styles.cancelModalTitle}>Sipariş iptal edilecek</Text><Text style={styles.cancelModalHint}>Lütfen iptal sebebini girin.</Text><TextInput autoFocus multiline value={cancellationReason} onChangeText={setCancellationReason} placeholder="İptal sebebi" style={styles.cancelReasonInput} /><View style={styles.cancelModalActions}><Pressable onPress={() => { setCancellingOrderId(null); setCancellationReason(""); }} style={styles.secondaryButton}><Text style={styles.secondaryButtonText}>Vazgeç</Text></Pressable><Pressable disabled={!cancellationReason.trim()} onPress={() => void confirmCancellation()} style={[styles.cancelConfirmButton, !cancellationReason.trim() ? styles.disabled : null]}><Text style={styles.cancelConfirmButtonText}>İptal et</Text></Pressable></View></View></View>
         ) : null}
@@ -435,6 +558,50 @@ function KitchenLoginRequired() {
 
 function Stat({ label, value }: { label: string; value: number }) {
   return <View style={styles.stat}><Text style={styles.statValue}>{value}</Text><Text style={styles.statLabel}>{label}</Text></View>;
+}
+
+type InventoryAction = "add-one" | "add-five" | "toggle-availability";
+
+function InventoryManagementPanel({
+  inventory,
+  lowStockCount,
+  updatingStockId,
+  onAction
+}: {
+  inventory: InventoryItemDto[];
+  lowStockCount: number;
+  updatingStockId: number | null;
+  onAction: (item: InventoryItemDto, action: InventoryAction) => void;
+}) {
+  return (
+    <View style={styles.inventoryPanel}>
+      <View style={styles.inventoryHeader}>
+        <View style={styles.flex}>
+          <Text style={styles.inventoryTitle}>Hızlı stok yönetimi</Text>
+          <Text style={styles.inventoryHint}>{lowStockCount > 0 ? `${lowStockCount} ürün için stok uyarısı var.` : "Stok seviyeleri normal."}</Text>
+        </View>
+        {lowStockCount > 0 ? <View style={styles.inventoryWarningBadge}><Text style={styles.inventoryWarningBadgeText}>{lowStockCount}</Text></View> : null}
+      </View>
+      {inventory.map((item) => {
+        const isUpdatingStock = updatingStockId === item.id;
+        const isCriticalStock = item.stockQuantity <= 5;
+        const isLowStock = item.stockQuantity > 5 && item.stockQuantity <= 10;
+        return (
+          <View key={item.id} style={[styles.inventoryRow, isLowStock ? styles.inventoryRowLow : null, isCriticalStock ? styles.inventoryRowCritical : null]}>
+            <View style={styles.flex}>
+              <Text style={styles.inventoryItemName}>{item.name}</Text>
+              <Text style={styles.inventoryItemMeta}>{item.categoryName} · Stok: {item.stockQuantity} · {item.isAvailable ? "Satışta" : "Satışta değil"}</Text>
+            </View>
+            <View style={styles.inventoryActions}>
+              <Pressable disabled={isUpdatingStock} onPress={() => onAction(item, "add-one")} style={[styles.inventoryActionButton, isUpdatingStock ? styles.disabled : null]}><Text style={styles.inventoryActionText}>+1</Text></Pressable>
+              <Pressable disabled={isUpdatingStock} onPress={() => onAction(item, "add-five")} style={[styles.inventoryActionButton, isUpdatingStock ? styles.disabled : null]}><Text style={styles.inventoryActionText}>+5</Text></Pressable>
+              <Pressable disabled={isUpdatingStock} onPress={() => onAction(item, "toggle-availability")} style={[styles.inventoryAvailabilityButton, !item.isAvailable ? styles.inventoryOpenButton : null, isUpdatingStock ? styles.disabled : null]}><Text style={styles.inventoryAvailabilityText}>{isUpdatingStock ? "…" : item.isAvailable ? "Tükendi" : "Satışa aç"}</Text></Pressable>
+            </View>
+          </View>
+        );
+      })}
+    </View>
+  );
 }
 
 function OrderItemRow({ item, isUpdating, onUpdate }: { item: OrderItemDto; isUpdating: boolean; onUpdate: (id: number, status: OrderItemStatus) => Promise<void> }) {
@@ -566,6 +733,23 @@ const styles = StyleSheet.create({
   soundButton: { alignItems: "center", backgroundColor: "#f7b733", borderRadius: 8, justifyContent: "center", minHeight: 42, paddingHorizontal: 12 }, soundButtonEnabled: { backgroundColor: "#d8f3e7" }, soundButtonText: { color: "#28351d", fontSize: 13, fontWeight: "900" },
   newOrderBanner: { alignItems: "center", backgroundColor: "#dcfce7", borderColor: "#22c55e", borderRadius: 10, borderWidth: 2, flexDirection: "row", gap: 11, padding: 13 }, newOrderBannerIcon: { color: "#16a34a", fontSize: 24 }, newOrderBannerTitle: { color: "#14532d", fontSize: 17, fontWeight: "900" }, newOrderBannerText: { color: "#166534", fontSize: 13, fontWeight: "700", marginTop: 2 },
   criticalSummary: { backgroundColor: "#991b1b", borderRadius: 10, padding: 12 }, criticalSummaryBlink: { backgroundColor: "#ef4444" }, criticalSummaryText: { color: "#fff", fontSize: 14, fontWeight: "900", textAlign: "center" },
+  inventoryPanel: { backgroundColor: "#253b53", borderRadius: 10, gap: 8, padding: 12 },
+  inventoryHeader: { alignItems: "center", flexDirection: "row", gap: 10 },
+  inventoryTitle: { color: "#fff", fontSize: 18, fontWeight: "900" },
+  inventoryHint: { color: "#b8c6d1", fontSize: 12, marginTop: 2 },
+  inventoryWarningBadge: { alignItems: "center", backgroundColor: "#dc2626", borderRadius: 16, height: 32, justifyContent: "center", minWidth: 32, paddingHorizontal: 8 },
+  inventoryWarningBadgeText: { color: "#fff", fontSize: 13, fontWeight: "900" },
+  inventoryRow: { alignItems: "center", backgroundColor: "#fff", borderRadius: 8, flexDirection: "row", flexWrap: "wrap", gap: 8, padding: 10 },
+  inventoryRowLow: { backgroundColor: "#fff7d6", borderColor: "#eab308", borderWidth: 2 },
+  inventoryRowCritical: { backgroundColor: "#fee2e2", borderColor: "#dc2626", borderWidth: 2 },
+  inventoryItemName: { color: "#17212b", fontSize: 14, fontWeight: "900" },
+  inventoryItemMeta: { color: "#667788", fontSize: 11, marginTop: 2 },
+  inventoryActions: { flexDirection: "row", flexWrap: "wrap", gap: 5 },
+  inventoryActionButton: { backgroundColor: "#31475d", borderRadius: 7, minWidth: 42, paddingHorizontal: 8, paddingVertical: 8 },
+  inventoryActionText: { color: "#fff", fontSize: 12, fontWeight: "900", textAlign: "center" },
+  inventoryAvailabilityButton: { backgroundColor: "#b83a31", borderRadius: 7, minWidth: 74, paddingHorizontal: 8, paddingVertical: 8 },
+  inventoryOpenButton: { backgroundColor: "#178251" },
+  inventoryAvailabilityText: { color: "#fff", fontSize: 11, fontWeight: "900", textAlign: "center" },
   waiterCallsPanel: { backgroundColor: "#fff4d8", borderColor: "#efc86c", borderRadius: 10, borderWidth: 1, gap: 8, padding: 12 }, waiterCallsHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between" }, waiterCallsTitle: { color: "#674600", fontSize: 18, fontWeight: "900" }, waiterCallsCount: { alignItems: "center", backgroundColor: "#d97706", borderRadius: 14, height: 28, justifyContent: "center", minWidth: 28, paddingHorizontal: 7 }, waiterCallsCountText: { color: "#fff", fontSize: 13, fontWeight: "900" }, waiterCallRow: { alignItems: "center", backgroundColor: "#fff", borderRadius: 8, flexDirection: "row", gap: 10, padding: 11 }, waiterCallTable: { color: "#17212b", fontSize: 17, fontWeight: "900" }, waiterCallTime: { color: "#75623a", fontSize: 12, marginTop: 2 }, waiterCallResolveButton: { backgroundColor: "#178251", borderRadius: 8, minWidth: 104, paddingHorizontal: 11, paddingVertical: 10 }, waiterCallResolveText: { color: "#fff", fontSize: 12, fontWeight: "900", textAlign: "center" },
   stats: { flexDirection: "row", gap: 8 }, stat: { backgroundColor: "#253b53", borderRadius: 10, flex: 1, gap: 3, padding: 12 }, statValue: { color: "#fff", fontSize: 24, fontWeight: "900" }, statLabel: { color: "#b8c6d1", fontSize: 12, fontWeight: "700" }, empty: { color: "#b8c6d1", textAlign: "center" },
   orderCard: { backgroundColor: "#fff", borderRadius: 10, gap: 8, padding: 14 }, overdueOrderCard: { backgroundColor: "#fff8e7", borderColor: "#f59e0b", borderWidth: 2 }, criticalOrderCard: { backgroundColor: "#fff1f2", borderColor: "#dc2626", borderWidth: 3 }, criticalOrderCardBlink: { backgroundColor: "#fecaca", borderColor: "#ff0000" }, orderHeader: { alignItems: "center", borderBottomColor: "#e7edf2", borderBottomWidth: 1, flexDirection: "row", justifyContent: "space-between", paddingBottom: 10 }, tableTitle: { color: "#17212b", fontSize: 21, fontWeight: "900" }, orderMeta: { color: "#667788", fontSize: 13, marginTop: 2 }, waitingTime: { color: "#178251", fontSize: 12, fontWeight: "800", marginTop: 4 }, waitingTimeOverdue: { color: "#b45309" }, waitingTimeCritical: { color: "#b91c1c", fontSize: 13, fontWeight: "900" }, statusPill: { backgroundColor: "#fff3cf", borderRadius: 99, paddingHorizontal: 10, paddingVertical: 6 }, readyPill: { backgroundColor: "#d8f3e7" }, statusText: { color: "#805900", fontSize: 12, fontWeight: "800" },

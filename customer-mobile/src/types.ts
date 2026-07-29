@@ -23,6 +23,7 @@ export type MenuItemDto = {
   price: number;
   imageUrl?: string | null;
   isAvailable: boolean;
+  stockQuantity: number;
   preparationMinutes: number;
   options?: MenuItemOptionDto[] | null;
 };
@@ -179,6 +180,14 @@ export type WaiterCallDto = {
   tableNumber: number;
   createdAt: string;
   resolvedAt?: string | null;
+};
+
+export type InventoryItemDto = {
+  id: number;
+  categoryName: string;
+  name: string;
+  stockQuantity: number;
+  isAvailable: boolean;
 };
 
 export type AppVersionDto = {

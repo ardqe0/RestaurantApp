@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.SignalR;
+using RestaurantApp.Contracts;
 
 namespace RestaurantApp.Hubs;
 
@@ -12,6 +13,13 @@ public static class OrderHubClientExtensions
         return hubContext.Clients
             .Group(OrderHub.OperationsGroup)
             .SendAsync(eventName, payload);
+    }
+
+    public static Task SendMenuStockChangedAsync(
+        this IHubContext<OrderHub> hubContext,
+        MenuStockChangedEvent payload)
+    {
+        return hubContext.Clients.All.SendAsync("MenuStockChanged", payload);
     }
 
     public static async Task SendToOrderAudienceAsync(

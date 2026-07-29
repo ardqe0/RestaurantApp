@@ -53,6 +53,9 @@ uygulaması olarak da derlenebilir.
 - Kategori ve menü ürünü CRUD işlemleri
 - Tarihli yüzde veya sabit tutarlı kampanya ve indirim yönetimi
 - Ürün fiyatı, görseli, satış durumu ve sıralamasını yönetme
+- Ürün stok adedini yönetme ve siparişlerde otomatik stok düşümü
+- Mutfaktan hızlı stok güncelleme, düşük stok uyarıları ve canlı müşteri menüsü
+- Hazırlanmamış sipariş iptallerinde otomatik stok iadesi
 - Masa oluşturma, düzenleme ve QR kod üretme
 - Aktif ve geçmiş siparişleri inceleme
 - Günlük rapor ve tarih aralığına göre satış analizi
@@ -118,6 +121,7 @@ RestaurantApp/
 ├── kitchen-kds/         # Ayrı mutfak ekranı istemcisi
 ├── Dockerfile           # Uygulama image tanımı
 ├── compose.yaml         # Uygulama ve SQL Server servisleri
+├── GELISTIRME_NOTLARI.md # Tamamlanan ve planlanan küçük iyileştirmeler
 ├── STARTUP.md           # Ayrıntılı yerel çalıştırma notları
 └── start-all.cmd        # Web uygulamalarını tek portta başlatır
 ```
@@ -167,6 +171,8 @@ Varsayılan yerel adresler:
 | Mutfak | `http://localhost:5223/kitchen` |
 | Yönetim | `http://localhost:5223/admin/` |
 | Swagger | `http://localhost:5223/swagger` |
+| Uygulama sağlık kontrolü | `http://localhost:5223/health/live` |
+| Veritabanı sağlık kontrolü | `http://localhost:5223/health/ready` |
 
 Yeni kayıt olan kullanıcılar otomatik olarak `Customer` rolünü alır. `Kitchen`
 ve `Admin` hesapları yalnızca güvenli başlangıç yapılandırmasıyla oluşturulur.
@@ -182,7 +188,8 @@ dotnet test .\RestaurantApp.Tests\RestaurantApp.Tests.csproj -c Release
 ```
 
 GitHub Actions, `main` dalına gönderilen her değişiklikte ve pull requestlerde
-backend testlerini ve React yönetim paneli derlemesini otomatik çalıştırır.
+backend testlerini; admin, müşteri ve mutfak TypeScript kontrollerini; üretim
+derlemelerini ve yüksek önem seviyeli paket güvenlik denetimlerini çalıştırır.
 
 ## Docker ile çalıştırma
 

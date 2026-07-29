@@ -24,3 +24,8 @@ public record TableStatusChangedEvent(
     int TableId,
     int TableNumber,
     TableStatus Status);
+
+public record MenuStockChangedEvent(
+    int MenuItemId,
+    int StockQuantity,
+    bool IsAvailable);

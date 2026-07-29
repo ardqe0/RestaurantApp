@@ -6,8 +6,12 @@ on:
   pull_request:
     branches: [main]
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  test:
+  backend:
     runs-on: ubuntu-latest
 
     steps:
@@ -22,20 +26,50 @@ jobs:
       - name: Backend entegrasyon testlerini çalıştır
         run: dotnet test RestaurantApp.Tests/RestaurantApp.Tests.csproj --configuration Release
 
-      - name: Node.js'i kur
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
+  frontends:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - project: admin-web
+            build_script: build
+          - project: customer-mobile
+            build_script: build:web
+          - project: kitchen-kds
+            build_script: build:web
+
+    steps:
+      - name: Kodu al
+        uses: actions/checkout@v4
 
       - name: pnpm'i kur
         uses: pnpm/action-setup@v4
         with:
-          version: 10
+          version: 11.9.0
 
-      - name: Admin paneli bağımlılıklarını yükle
-        working-directory: admin-web
+      - name: Node.js'i kur
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: ${{ matrix.project }}/pnpm-lock.yaml
+
+      - name: Bağımlılıkları yükle
+        working-directory: ${{ matrix.project }}
         run: pnpm install --frozen-lockfile
 
-      - name: Admin panelini derle
-        working-directory: admin-web
-        run: pnpm run build
+      - name: Yüksek önem seviyeli paket açıklarını denetle
+        working-directory: ${{ matrix.project }}
+        run: pnpm audit --audit-level high
+
+      - name: TypeScript kontrolünü çalıştır
+        working-directory: ${{ matrix.project }}
+        run: pnpm run typecheck
+
+      - name: Uygulamayı derle
+        working-directory: ${{ matrix.project }}
+        env:
+          EXPO_NO_DOTENV: "1"
+          EXPO_PUBLIC_API_URL: http://localhost:5223
+        run: pnpm run ${{ matrix.build_script }}
