@@ -44,6 +44,7 @@ export type MenuItemInput = {
   price: number;
   imageUrl: string | null;
   isAvailable: boolean;
+  stockQuantity: number;
   preparationMinutes: number;
 };
 

@@ -53,6 +53,9 @@ uygulaması olarak da derlenebilir.
 - Kategori ve menü ürünü CRUD işlemleri
 - Tarihli yüzde veya sabit tutarlı kampanya ve indirim yönetimi
 - Ürün fiyatı, görseli, satış durumu ve sıralamasını yönetme
+- Ürün stok adedini yönetme ve siparişlerde otomatik stok düşümü
+- Mutfaktan hızlı stok güncelleme, düşük stok uyarıları ve canlı müşteri menüsü
+- Hazırlanmamış sipariş iptallerinde otomatik stok iadesi
 - Masa oluşturma, düzenleme ve QR kod üretme
 - Aktif ve geçmiş siparişleri inceleme
 - Günlük rapor ve tarih aralığına göre satış analizi

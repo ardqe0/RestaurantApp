@@ -28,7 +28,7 @@ public class MenuController : ControllerBase
                 category.Name,
                 category.DisplayOrder,
                 category.MenuItems
-                    .Where(item => item.IsAvailable)
+                    .Where(item => item.IsAvailable && item.StockQuantity > 0)
                     .OrderBy(item => item.Name)
                     .Select(item => new MenuItemDto(
                         item.Id,
@@ -46,7 +46,8 @@ public class MenuController : ControllerBase
                                 option.Id,
                                 option.Name,
                                 option.AdditionalPrice))
-                            .ToList()))
+                            .ToList(),
+                        item.StockQuantity))
                     .ToList()))
             .ToListAsync();
 

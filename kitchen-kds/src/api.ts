@@ -1,5 +1,5 @@
 import { Platform } from "react-native";
-import type { OrderDto, OrderItemStatus, PaymentMethod, WaiterCallDto } from "./types";
+import type { InventoryItemDto, OrderDto, OrderItemStatus, PaymentMethod, WaiterCallDto } from "./types";
 
 export const defaultApiBaseUrl = Platform.OS === "web" && typeof window !== "undefined" ? window.location.origin : "http://10.0.2.2:5223";
 
@@ -98,4 +98,29 @@ export function getActiveWaiterCalls(baseUrl: string) {
 
 export function resolveWaiterCall(baseUrl: string, id: number) {
   return request<void>(baseUrl, `/api/admin/waiter-calls/${id}/resolve`, { method: "PUT" });
+}
+
+export function getInventory(baseUrl: string) {
+  return request<InventoryItemDto[]>(baseUrl, "/api/inventory");
+}
+
+export function adjustInventory(baseUrl: string, id: number, delta: number) {
+  return request<InventoryItemDto>(baseUrl, `/api/inventory/${id}/adjust`, {
+    method: "PUT",
+    body: JSON.stringify({ delta })
+  });
+}
+
+export function setInventoryStock(baseUrl: string, id: number, stockQuantity: number) {
+  return request<InventoryItemDto>(baseUrl, `/api/inventory/${id}/stock`, {
+    method: "PUT",
+    body: JSON.stringify({ stockQuantity })
+  });
+}
+
+export function setInventoryAvailability(baseUrl: string, id: number, isAvailable: boolean) {
+  return request<InventoryItemDto>(baseUrl, `/api/inventory/${id}/availability`, {
+    method: "PUT",
+    body: JSON.stringify({ isAvailable })
+  });
 }

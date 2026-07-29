@@ -212,6 +212,66 @@ export default function CustomerScreen({
     }
   }, [startSessionFromQr]);
 
+  useEffect(() => {
+    if (!session || !table) {
+      return;
+    }
+
+    let active = true;
+    const refreshMenu = async () => {
+      try {
+        const nextMenu = await getMenu(apiBaseUrl);
+        if (!active) return;
+
+        const availableItems = new Map(
+          nextMenu.flatMap((category) => category.items).map((item) => [item.id, item])
+        );
+        setMenu(nextMenu);
+        setCart((current) => Object.fromEntries(
+          Object.entries(current)
+            .map(([id, line]) => {
+              const currentItem = availableItems.get(Number(id));
+              return currentItem
+                ? [id, {
+                    ...line,
+                    menuItem: currentItem,
+                    selectedOptions: line.selectedOptions.filter((option) =>
+                      currentItem.options?.some((currentOption) => currentOption.id === option.id)
+                    )
+                  }]
+                : null;
+            })
+            .filter((entry): entry is [string, CartLine] => entry !== null)
+        ));
+      } catch {
+        // Bağlantı geri geldiğinde SignalR veya yedek yenileme tekrar dener.
+      }
+    };
+
+    const hubUrl = `${apiBaseUrl.trim().replace(/\/$/, "")}/hubs/orders`;
+    const connection = new HubConnectionBuilder()
+      .withUrl(hubUrl, {
+        withCredentials: true,
+        accessTokenFactory: async () => await getAccessToken() ?? ""
+      })
+      .withAutomaticReconnect([0, 2_000, 5_000, 10_000])
+      .configureLogging(LogLevel.Warning)
+      .build();
+
+    connection.on("MenuStockChanged", refreshMenu);
+    void connection.start().catch(() => undefined);
+    const fallbackTimer = setInterval(() => void refreshMenu(), 15_000);
+
+    return () => {
+      active = false;
+      clearInterval(fallbackTimer);
+      connection.off("MenuStockChanged", refreshMenu);
+      if (connection.state !== HubConnectionState.Disconnected) {
+        void connection.stop();
+      }
+    };
+  }, [apiBaseUrl, session, table]);
+
   const refreshTrackedOrder = useCallback(async (orderId: number) => {
     try {
       const freshOrder = await getOrder(apiBaseUrl.trim(), orderId);

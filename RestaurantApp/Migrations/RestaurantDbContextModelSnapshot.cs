@@ -17,7 +17,7 @@ namespace RestaurantApp.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "8.0.7")
+                .HasAnnotation("ProductVersion", "8.0.29")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
@@ -486,6 +486,11 @@ namespace RestaurantApp.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<int>("StockQuantity")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(100);
+
                     b.HasKey("Id");
 
                     b.HasIndex("CategoryId");
@@ -502,7 +507,8 @@ namespace RestaurantApp.Migrations
                             IsAvailable = true,
                             Name = "Mercimek Çorbası",
                             PreparationMinutes = 8,
-                            Price = 95m
+                            Price = 95m,
+                            StockQuantity = 100
                         },
                         new
                         {
@@ -513,7 +519,8 @@ namespace RestaurantApp.Migrations
                             IsAvailable = true,
                             Name = "Patates Kızartması",
                             PreparationMinutes = 10,
-                            Price = 120m
+                            Price = 120m,
+                            StockQuantity = 100
                         },
                         new
                         {
@@ -524,7 +531,8 @@ namespace RestaurantApp.Migrations
                             IsAvailable = true,
                             Name = "Izgara Köfte",
                             PreparationMinutes = 18,
-                            Price = 285m
+                            Price = 285m,
+                            StockQuantity = 100
                         },
                         new
                         {
@@ -535,7 +543,8 @@ namespace RestaurantApp.Migrations
                             IsAvailable = true,
                             Name = "Tavuk Şiş",
                             PreparationMinutes = 16,
-                            Price = 260m
+                            Price = 260m,
+                            StockQuantity = 100
                         },
                         new
                         {
@@ -546,7 +555,8 @@ namespace RestaurantApp.Migrations
                             IsAvailable = true,
                             Name = "Ayran",
                             PreparationMinutes = 2,
-                            Price = 45m
+                            Price = 45m,
+                            StockQuantity = 100
                         },
                         new
                         {
@@ -557,7 +567,8 @@ namespace RestaurantApp.Migrations
                             IsAvailable = true,
                             Name = "Limonata",
                             PreparationMinutes = 3,
-                            Price = 70m
+                            Price = 70m,
+                            StockQuantity = 100
                         },
                         new
                         {
@@ -568,7 +579,8 @@ namespace RestaurantApp.Migrations
                             IsAvailable = true,
                             Name = "Sütlaç",
                             PreparationMinutes = 5,
-                            Price = 110m
+                            Price = 110m,
+                            StockQuantity = 100
                         });
                 });
 

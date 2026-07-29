@@ -482,6 +482,7 @@ type MenuItemDraft = {
   price: string;
   imageUrl: string;
   isAvailable: boolean;
+  stockQuantity: string;
   preparationMinutes: string;
 };
 
@@ -495,6 +496,9 @@ function MenuTab({
   onChanged: () => void | Promise<void>;
 }) {
   const categories = [...data.categories].sort((left, right) => left.displayOrder - right.displayOrder);
+  const lowStockItems = [...data.menuItems]
+    .filter((item) => item.stockQuantity <= 10)
+    .sort((left, right) => left.stockQuantity - right.stockQuantity || left.name.localeCompare(right.name));
   const [categoryDraft, setCategoryDraft] = useState<CategoryDraft | null>(null);
   const [menuItemDraft, setMenuItemDraft] = useState<MenuItemDraft | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -532,6 +536,7 @@ function MenuTab({
       price: "",
       imageUrl: "",
       isAvailable: true,
+      stockQuantity: "100",
       preparationMinutes: "10"
     });
   }
@@ -546,6 +551,7 @@ function MenuTab({
       price: String(item.price).replace(".", ","),
       imageUrl: item.imageUrl ?? "",
       isAvailable: item.isAvailable,
+      stockQuantity: String(item.stockQuantity),
       preparationMinutes: String(item.preparationMinutes)
     });
   }
@@ -589,8 +595,15 @@ function MenuTab({
     const categoryId = Number.parseInt(menuItemDraft.categoryId, 10);
     const price = Number(menuItemDraft.price.replace(",", "."));
     const preparationMinutes = Number.parseInt(menuItemDraft.preparationMinutes, 10);
-    if (!categoryId || !Number.isFinite(price) || price < 0 || !Number.isInteger(preparationMinutes) || preparationMinutes < 0) {
-      Alert.alert("Geçersiz bilgi", "Kategori, fiyat ve hazırlama süresini kontrol edin.");
+    const stockQuantity = Number.parseInt(menuItemDraft.stockQuantity, 10);
+    if (!categoryId
+      || !Number.isFinite(price)
+      || price < 0
+      || !Number.isInteger(preparationMinutes)
+      || preparationMinutes < 0
+      || !Number.isInteger(stockQuantity)
+      || stockQuantity < 0) {
+      Alert.alert("Geçersiz bilgi", "Kategori, fiyat, stok ve hazırlama süresini kontrol edin.");
       return;
     }
 
@@ -603,6 +616,7 @@ function MenuTab({
         price,
         imageUrl: menuItemDraft.imageUrl.trim() || null,
         isAvailable: menuItemDraft.isAvailable,
+        stockQuantity,
         preparationMinutes
       };
       if (menuItemDraft.id) await updateMenuItem(apiBaseUrl, menuItemDraft.id, input);
@@ -660,6 +674,24 @@ function MenuTab({
     <>
       <Text style={styles.pageTitle}>Menü yönetimi</Text>
       <Text style={styles.pageSubtitle}>{data.menuItems.length} ürün · {categories.length} kategori</Text>
+      {lowStockItems.length > 0 ? (
+        <View style={styles.stockAlertPanel}>
+          <Text style={styles.stockAlertTitle}>Düşük stok uyarısı</Text>
+          <Text style={styles.stockAlertHint}>{lowStockItems.length} ürünün stoğu 10 veya altında.</Text>
+          <View style={styles.stockAlertItems}>
+            {lowStockItems.map((item) => (
+              <View
+                key={item.id}
+                style={[styles.stockAlertBadge, item.stockQuantity <= 5 ? styles.stockAlertCritical : null]}
+              >
+                <Text style={[styles.stockAlertBadgeText, item.stockQuantity <= 5 ? styles.stockAlertCriticalText : null]}>
+                  {item.name}: {item.stockQuantity}
+                </Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      ) : null}
       <View style={styles.menuToolbar}>
         <Pressable onPress={openNewCategory} style={styles.menuToolbarButton}>
           <Text style={styles.menuToolbarButtonText}>+ Kategori</Text>
@@ -759,6 +791,13 @@ function MenuTab({
               />
             </View>
           </View>
+          <Text style={styles.editorLabel}>Stok adedi</Text>
+          <TextInput
+            keyboardType="number-pad"
+            onChangeText={(stockQuantity) => setMenuItemDraft((current) => current ? { ...current, stockQuantity } : current)}
+            style={styles.editorInput}
+            value={menuItemDraft.stockQuantity}
+          />
           <Text style={styles.editorLabel}>Görsel yolu</Text>
           <TextInput
             autoCapitalize="none"
@@ -844,7 +883,7 @@ function MenuItemRow({
         <Text style={styles.menuName}>{item.name}</Text>
         <Text numberOfLines={2} style={styles.menuDescription}>{item.description || "Açıklama yok"}</Text>
         <Text style={item.isAvailable ? styles.available : styles.unavailable}>
-          {item.isAvailable ? "Satışta" : "Satışta değil"} · {item.preparationMinutes} dk
+          Stok {item.stockQuantity} · {item.isAvailable ? "Satışta" : "Satışta değil"} · {item.preparationMinutes} dk
         </Text>
       </View>
       <View style={styles.menuItemEnd}>
@@ -1120,6 +1159,14 @@ const styles = StyleSheet.create({
   tableMeta: { color: "#5d6d72", fontSize: 12, marginTop: 2 },
   tableOrder: { color: "#34484f", fontSize: 11, fontWeight: "700", marginTop: 10 },
   menuToolbar: { flexDirection: "row", gap: 8 },
+  stockAlertPanel: { backgroundColor: "#fff8dc", borderColor: "#e8c94f", borderRadius: 12, borderWidth: 1, gap: 5, padding: 12 },
+  stockAlertTitle: { color: "#714c00", fontSize: 15, fontWeight: "900" },
+  stockAlertHint: { color: "#826b35", fontSize: 11 },
+  stockAlertItems: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 4 },
+  stockAlertBadge: { backgroundColor: "#f7d85b", borderRadius: 99, paddingHorizontal: 9, paddingVertical: 6 },
+  stockAlertCritical: { backgroundColor: "#dc3c32" },
+  stockAlertBadgeText: { color: "#5d4300", fontSize: 10, fontWeight: "900" },
+  stockAlertCriticalText: { color: "#fff" },
   menuToolbarButton: { alignItems: "center", backgroundColor: "#168569", borderRadius: 9, flex: 1, minHeight: 43, justifyContent: "center", paddingHorizontal: 10 },
   menuToolbarButtonText: { color: "#fff", fontSize: 13, fontWeight: "900" },
   editorCard: { backgroundColor: "#fff", borderColor: "#b8d7cd", borderRadius: 14, borderWidth: 1, gap: 8, padding: 14 },

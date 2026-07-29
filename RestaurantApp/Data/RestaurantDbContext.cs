@@ -63,6 +63,7 @@ public class RestaurantDbContext : IdentityDbContext<AppUser>
             entity.Property(item => item.Description).HasMaxLength(500);
             entity.Property(item => item.ImageUrl).HasMaxLength(500);
             entity.Property(item => item.Price).HasPrecision(18, 2);
+            entity.Property(item => item.StockQuantity).HasDefaultValue(100);
         });
 
         modelBuilder.Entity<MenuItemOption>(entity =>
@@ -232,6 +233,7 @@ public class RestaurantDbContext : IdentityDbContext<AppUser>
                 Price = 95m,
                 ImageUrl = "/images/menu/mercimek-corbasi.jpg",
                 IsAvailable = true,
+                StockQuantity = 100,
                 PreparationMinutes = 8
             },
             new MenuItem
@@ -243,6 +245,7 @@ public class RestaurantDbContext : IdentityDbContext<AppUser>
                 Price = 120m,
                 ImageUrl = "/images/menu/patates-kizartmasi.jpg",
                 IsAvailable = true,
+                StockQuantity = 100,
                 PreparationMinutes = 10
             },
             new MenuItem
@@ -254,6 +257,7 @@ public class RestaurantDbContext : IdentityDbContext<AppUser>
                 Price = 285m,
                 ImageUrl = "/images/menu/izgara-kofte.jpg",
                 IsAvailable = true,
+                StockQuantity = 100,
                 PreparationMinutes = 18
             },
             new MenuItem
@@ -265,6 +269,7 @@ public class RestaurantDbContext : IdentityDbContext<AppUser>
                 Price = 260m,
                 ImageUrl = "/images/menu/tavuk-sis.jpg",
                 IsAvailable = true,
+                StockQuantity = 100,
                 PreparationMinutes = 16
             },
             new MenuItem
@@ -276,6 +281,7 @@ public class RestaurantDbContext : IdentityDbContext<AppUser>
                 Price = 45m,
                 ImageUrl = "/images/menu/ayran.jpg",
                 IsAvailable = true,
+                StockQuantity = 100,
                 PreparationMinutes = 2
             },
             new MenuItem
@@ -287,6 +293,7 @@ public class RestaurantDbContext : IdentityDbContext<AppUser>
                 Price = 70m,
                 ImageUrl = "/images/menu/limonata.jpg",
                 IsAvailable = true,
+                StockQuantity = 100,
                 PreparationMinutes = 3
             },
             new MenuItem
@@ -298,6 +305,7 @@ public class RestaurantDbContext : IdentityDbContext<AppUser>
                 Price = 110m,
                 ImageUrl = "/images/menu/sutlac.jpg",
                 IsAvailable = true,
+                StockQuantity = 100,
                 PreparationMinutes = 5
             });
 

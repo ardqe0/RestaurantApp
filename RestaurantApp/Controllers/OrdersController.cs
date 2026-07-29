@@ -64,6 +64,9 @@ public class OrdersController : ControllerBase
         }
 
         var requestedItemIds = request.Items.Select(item => item.MenuItemId).Distinct().ToList();
+        var requestedQuantities = request.Items
+            .GroupBy(item => item.MenuItemId)
+            .ToDictionary(group => group.Key, group => group.Sum(item => item.Quantity));
         var menuItems = await _dbContext.MenuItems
             .Include(item => item.Options)
             .Where(item => requestedItemIds.Contains(item.Id))
@@ -77,6 +80,16 @@ public class OrdersController : ControllerBase
         if (menuItems.Values.Any(item => !item.IsAvailable))
         {
             return BadRequest("Pasif veya mevcut olmayan ürün sipariş edilemez.");
+        }
+
+        var insufficientStockItems = menuItems.Values
+            .Where(item => item.StockQuantity < requestedQuantities[item.Id])
+            .Select(item => item.Name)
+            .OrderBy(name => name)
+            .ToList();
+        if (insufficientStockItems.Count > 0)
+        {
+            return BadRequest($"Yetersiz stok: {string.Join(", ", insufficientStockItems)}.");
         }
 
         var now = DateTime.UtcNow;
@@ -149,9 +162,12 @@ public class OrdersController : ControllerBase
         order.CampaignName = appliedCampaign?.Campaign.Name;
 
         var tableClaimed = false;
+        string? stockError = null;
         var executionStrategy = _dbContext.Database.CreateExecutionStrategy();
         await executionStrategy.ExecuteAsync(async () =>
         {
+            tableClaimed = false;
+            stockError = null;
             await using var transaction = await _dbContext.Database.BeginTransactionAsync();
             var claimedTableCount = await _dbContext.RestaurantTables
                 .Where(item => item.Id == table.Id && item.Status == TableStatus.Empty)
@@ -164,11 +180,39 @@ public class OrdersController : ControllerBase
                 return;
             }
 
+            foreach (var requestedQuantity in requestedQuantities)
+            {
+                var updatedStockCount = await _dbContext.MenuItems
+                    .Where(item =>
+                        item.Id == requestedQuantity.Key
+                        && item.IsAvailable
+                        && item.StockQuantity >= requestedQuantity.Value)
+                    .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(
+                            item => item.StockQuantity,
+                            item => item.StockQuantity - requestedQuantity.Value)
+                        .SetProperty(
+                            item => item.IsAvailable,
+                            item => item.StockQuantity > requestedQuantity.Value));
+
+                if (updatedStockCount == 0)
+                {
+                    stockError = $"{menuItems[requestedQuantity.Key].Name} için yeterli stok kalmadı.";
+                    await transaction.RollbackAsync();
+                    return;
+                }
+            }
+
             tableClaimed = true;
             _dbContext.Orders.Add(order);
             await _dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
         });
+
+        if (stockError is not null)
+        {
+            return BadRequest(stockError);
+        }
 
         if (!tableClaimed)
         {
@@ -189,6 +233,19 @@ public class OrdersController : ControllerBase
                 table.Id,
                 table.Number,
                 TableStatus.Occupied));
+
+            var updatedStocks = await _dbContext.MenuItems
+                .AsNoTracking()
+                .Where(item => requestedItemIds.Contains(item.Id))
+                .Select(item => new MenuStockChangedEvent(
+                    item.Id,
+                    item.StockQuantity,
+                    item.IsAvailable))
+                .ToListAsync();
+            foreach (var updatedStock in updatedStocks)
+            {
+                await _hubContext.SendMenuStockChangedAsync(updatedStock);
+            }
         }
 
         return CreatedAtAction(nameof(GetOrder), new { id = order.Id }, createdOrder);

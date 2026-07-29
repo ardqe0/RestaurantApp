@@ -25,7 +25,8 @@ public record CreateMenuItemRequest(
     [Range(typeof(decimal), "0", "1000000")] decimal Price,
     [StringLength(500)] string? ImageUrl,
     bool IsAvailable,
-    [Range(0, 1440)] int PreparationMinutes);
+    [Range(0, 1440)] int PreparationMinutes,
+    [Range(0, 1000000)] int StockQuantity = 100);
 
 public record UpdateMenuItemRequest(
     [Range(1, int.MaxValue)] int CategoryId,
@@ -34,4 +35,5 @@ public record UpdateMenuItemRequest(
     [Range(typeof(decimal), "0", "1000000")] decimal Price,
     [StringLength(500)] string? ImageUrl,
     bool IsAvailable,
-    [Range(0, 1440)] int PreparationMinutes);
+    [Range(0, 1440)] int PreparationMinutes,
+    [Range(0, 1000000)] int StockQuantity = 100);

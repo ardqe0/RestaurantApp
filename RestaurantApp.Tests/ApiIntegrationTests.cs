@@ -115,12 +115,68 @@ public sealed class ApiIntegrationTests : IClassFixture<RestaurantAppFactory>, I
         Assert.Equal(OrderStatus.Cancelled, cancelledOrder!.Status);
         Assert.Equal("Ürün tükendi", cancelledOrder.CancellationReason);
         Assert.Equal(TableStatus.Empty, (await dbContext.RestaurantTables.FindAsync(2))!.Status);
+        Assert.Equal(100, (await dbContext.MenuItems.FindAsync(1))!.StockQuantity);
         Assert.Contains(dbContext.AuditLogs, log =>
             log.EntityType == "Order"
             && log.EntityId == order.Id.ToString()
             && log.Action == "Cancel"
             && log.UserName == "kitchen-test"
             && log.AfterJson!.Contains("Ürün tükendi"));
+    }
+
+    [Fact]
+    public async Task CancellingOrderAfterPreparation_DoesNotRestoreStock()
+    {
+        using var customer = await CreateAuthenticatedClientAsync("customer-one");
+        var order = await CreateOrderAsync(customer, tableId: 2);
+        using var kitchen = await CreateAuthenticatedClientAsync("kitchen-test");
+
+        var orderItemId = order.Items.Single().Id;
+        Assert.Equal(HttpStatusCode.NoContent, (await kitchen.PutAsJsonAsync(
+            $"/api/admin/order-items/{orderItemId}/status",
+            new UpdateOrderItemStatusRequest(OrderItemStatus.Preparing),
+            JsonOptions)).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await kitchen.PutAsJsonAsync(
+            $"/api/admin/orders/{order.Id}/status",
+            new UpdateOrderStatusRequest(OrderStatus.Cancelled, "Müşteri talebi"),
+            JsonOptions)).StatusCode);
+
+        using var scope = _factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<RestaurantDbContext>();
+        Assert.Equal(99, (await dbContext.MenuItems.FindAsync(1))!.StockQuantity);
+    }
+
+    [Fact]
+    public async Task KitchenInventoryActions_UpdateStockAvailabilityAndAuditLog()
+    {
+        await SetMenuItemStockAsync(menuItemId: 1, stockQuantity: 4);
+        using var kitchen = await CreateAuthenticatedClientAsync("kitchen-test");
+
+        var adjustedResponse = await kitchen.PutAsJsonAsync(
+            "/api/inventory/1/adjust",
+            new AdjustInventoryRequest(5),
+            JsonOptions);
+        Assert.Equal(HttpStatusCode.OK, adjustedResponse.StatusCode);
+        var adjusted = await adjustedResponse.Content.ReadFromJsonAsync<InventoryItemDto>(JsonOptions);
+        Assert.Equal(9, adjusted!.StockQuantity);
+        Assert.True(adjusted.IsAvailable);
+
+        var soldOutResponse = await kitchen.PutAsJsonAsync(
+            "/api/inventory/1/stock",
+            new SetInventoryStockRequest(0),
+            JsonOptions);
+        Assert.Equal(HttpStatusCode.OK, soldOutResponse.StatusCode);
+        var soldOut = await soldOutResponse.Content.ReadFromJsonAsync<InventoryItemDto>(JsonOptions);
+        Assert.Equal(0, soldOut!.StockQuantity);
+        Assert.False(soldOut.IsAvailable);
+
+        using var scope = _factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<RestaurantDbContext>();
+        Assert.Contains(dbContext.AuditLogs, log =>
+            log.EntityType == "MenuItem"
+            && log.EntityId == "1"
+            && log.Action == "StockChange"
+            && log.UserName == "kitchen-test");
     }
 
     [Fact]
@@ -248,6 +304,45 @@ public sealed class ApiIntegrationTests : IClassFixture<RestaurantAppFactory>, I
         });
     }
 
+    [Fact]
+    public async Task OrderCreation_DecrementsStockAndDisablesSoldOutItem()
+    {
+        await SetMenuItemStockAsync(menuItemId: 1, stockQuantity: 2);
+        using var customer = await CreateAuthenticatedClientAsync("customer-one");
+
+        var response = await customer.PostAsJsonAsync(
+            "/api/orders",
+            NewOrderRequest(tableId: 1, quantity: 2),
+            JsonOptions);
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        using var scope = _factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<RestaurantDbContext>();
+        var menuItem = await dbContext.MenuItems.FindAsync(1);
+        Assert.Equal(0, menuItem!.StockQuantity);
+        Assert.False(menuItem.IsAvailable);
+    }
+
+    [Fact]
+    public async Task InsufficientStock_RejectsOrderWithoutOccupyingTable()
+    {
+        await SetMenuItemStockAsync(menuItemId: 1, stockQuantity: 1);
+        using var customer = await CreateAuthenticatedClientAsync("customer-one");
+
+        var response = await customer.PostAsJsonAsync(
+            "/api/orders",
+            NewOrderRequest(tableId: 1, quantity: 2),
+            JsonOptions);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains("Yetersiz stok", await response.Content.ReadAsStringAsync());
+        using var scope = _factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<RestaurantDbContext>();
+        Assert.Equal(1, (await dbContext.MenuItems.FindAsync(1))!.StockQuantity);
+        Assert.Equal(TableStatus.Empty, (await dbContext.RestaurantTables.FindAsync(1))!.Status);
+        Assert.Empty(dbContext.Orders);
+    }
+
     [Theory]
     [InlineData("/health/live")]
     [InlineData("/health/ready")]
@@ -282,6 +377,16 @@ public sealed class ApiIntegrationTests : IClassFixture<RestaurantAppFactory>, I
         return (await response.Content.ReadFromJsonAsync<OrderDto>(JsonOptions))!;
     }
 
-    private static CreateOrderRequest NewOrderRequest(int tableId) =>
-        new(tableId, [new CreateOrderItemRequest(1, 1, "Az tuzlu")]);
+    private async Task SetMenuItemStockAsync(int menuItemId, int stockQuantity)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<RestaurantDbContext>();
+        var menuItem = await dbContext.MenuItems.FindAsync(menuItemId);
+        menuItem!.StockQuantity = stockQuantity;
+        menuItem.IsAvailable = stockQuantity > 0;
+        await dbContext.SaveChangesAsync();
+    }
+
+    private static CreateOrderRequest NewOrderRequest(int tableId, int quantity = 1) =>
+        new(tableId, [new CreateOrderItemRequest(1, quantity, "Az tuzlu")]);
 }

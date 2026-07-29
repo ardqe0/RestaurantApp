@@ -18,6 +18,8 @@ public class MenuItem
 
     public bool IsAvailable { get; set; } = true;
 
+    public int StockQuantity { get; set; } = 100;
+
     public int PreparationMinutes { get; set; }
 
     public ICollection<OrderItem> OrderItems { get; set; } = new List<OrderItem>();

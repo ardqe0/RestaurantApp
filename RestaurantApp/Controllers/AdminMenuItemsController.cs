@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using RestaurantApp.Contracts;
 using RestaurantApp.Data;
+using RestaurantApp.Hubs;
 using RestaurantApp.Models;
 using RestaurantApp.Services;
 
@@ -15,11 +17,16 @@ public class AdminMenuItemsController : ControllerBase
 {
     private readonly RestaurantDbContext _dbContext;
     private readonly AuditLogService _auditLog;
+    private readonly IHubContext<OrderHub> _hubContext;
 
-    public AdminMenuItemsController(RestaurantDbContext dbContext, AuditLogService auditLog)
+    public AdminMenuItemsController(
+        RestaurantDbContext dbContext,
+        AuditLogService auditLog,
+        IHubContext<OrderHub> hubContext)
     {
         _dbContext = dbContext;
         _auditLog = auditLog;
+        _hubContext = hubContext;
     }
 
     [HttpGet]
@@ -38,7 +45,8 @@ public class AdminMenuItemsController : ControllerBase
                 item.ImageUrl,
                 item.IsAvailable,
                 item.PreparationMinutes,
-                null))
+                null,
+                item.StockQuantity))
             .ToListAsync();
 
         return Ok(items);
@@ -59,7 +67,8 @@ public class AdminMenuItemsController : ControllerBase
             Description = request.Description.Trim(),
             Price = request.Price,
             ImageUrl = string.IsNullOrWhiteSpace(request.ImageUrl) ? null : request.ImageUrl.Trim(),
-            IsAvailable = request.IsAvailable,
+            IsAvailable = request.IsAvailable && request.StockQuantity > 0,
+            StockQuantity = request.StockQuantity,
             PreparationMinutes = request.PreparationMinutes
         };
 
@@ -69,6 +78,7 @@ public class AdminMenuItemsController : ControllerBase
         await _dbContext.SaveChangesAsync();
 
         var dto = ToDto(menuItem);
+        await SendStockChanged(menuItem);
         return CreatedAtAction(nameof(GetMenuItems), dto);
     }
 
@@ -92,11 +102,13 @@ public class AdminMenuItemsController : ControllerBase
         menuItem.Description = request.Description.Trim();
         menuItem.Price = request.Price;
         menuItem.ImageUrl = string.IsNullOrWhiteSpace(request.ImageUrl) ? null : request.ImageUrl.Trim();
-        menuItem.IsAvailable = request.IsAvailable;
+        menuItem.IsAvailable = request.IsAvailable && request.StockQuantity > 0;
+        menuItem.StockQuantity = request.StockQuantity;
         menuItem.PreparationMinutes = request.PreparationMinutes;
 
         _auditLog.Add("Update", "MenuItem", menuItem.Id.ToString(), before, ToAuditValue(menuItem));
         await _dbContext.SaveChangesAsync();
+        await SendStockChanged(menuItem);
         return NoContent();
     }
 
@@ -125,7 +137,9 @@ public class AdminMenuItemsController : ControllerBase
             menuItem.Price,
             menuItem.ImageUrl,
             menuItem.IsAvailable,
-            menuItem.PreparationMinutes);
+            menuItem.PreparationMinutes,
+            null,
+            menuItem.StockQuantity);
     }
 
     private static object ToAuditValue(MenuItem menuItem) => new
@@ -136,6 +150,15 @@ public class AdminMenuItemsController : ControllerBase
         menuItem.Price,
         menuItem.ImageUrl,
         menuItem.IsAvailable,
+        menuItem.StockQuantity,
         menuItem.PreparationMinutes
     };
+
+    private Task SendStockChanged(MenuItem menuItem)
+    {
+        return _hubContext.SendMenuStockChangedAsync(new MenuStockChangedEvent(
+            menuItem.Id,
+            menuItem.StockQuantity,
+            menuItem.IsAvailable));
+    }
 }

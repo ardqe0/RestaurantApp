@@ -127,6 +127,9 @@ textarea { min-height: 76px; resize: vertical; }
 .summary-table th:first-child, .summary-table td:first-child { text-align: left; }.summary-table td:last-child { color: #126c43; font-weight: 850; }.summary-table tbody tr:last-child td { border-bottom: 0; }
 
 .management-grid { display: grid; gap: 18px; grid-template-columns: minmax(280px, .8fr) minmax(500px, 1.5fr); }
+.stock-alert-panel { align-items: center; background: #fff8dc; border: 1px solid #e8c94f; border-radius: 11px; display: flex; gap: 16px; justify-content: space-between; margin-bottom: 14px; padding: 12px 13px; }
+.stock-alert-panel > div:first-child { display: grid; gap: 3px; }.stock-alert-panel strong { color: #714c00; font-size: 13px; }.stock-alert-panel small { color: #826b35; font-size: 10px; }
+.stock-alert-items { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }.stock-alert-items span { border-radius: 99px; font-size: 10px; font-weight: 900; padding: 6px 9px; }.stock-alert-items .low { background: #f7d85b; color: #5d4300; }.stock-alert-items .critical { background: #dc3c32; color: #fff; }
 .management-column { min-width: 0; }.management-column + .management-column { border-left: 1px solid #e7edef; padding-left: 18px; }
 .editor-form { background: #f5f8f8; border: 1px solid #e3eaec; border-radius: 11px; display: grid; gap: 10px; margin-bottom: 13px; padding: 13px; }
 .category-form { grid-template-columns: 1fr 100px; }.category-form .checkbox-label, .category-form .form-actions { grid-column: 1 / -1; }
@@ -188,6 +191,7 @@ textarea { min-height: 76px; resize: vertical; }
   .section-actions { align-items: stretch; flex-direction: column; width: 100%; }.section-actions input { width: 100%; }
   .order-filters { grid-template-columns: 1fr; width: 100%; }.order-card-footer { align-items: flex-start; flex-direction: column; }.order-status-actions { justify-content: flex-start; }
   .entity-row { align-items: flex-start; flex-wrap: wrap; }.row-actions { margin-left: auto; }
+  .stock-alert-panel { align-items: flex-start; flex-direction: column; }.stock-alert-items { justify-content: flex-start; }
   .qr-address-panel { grid-template-columns: 1fr; }.qr-address-note { padding-bottom: 0; }.qr-modal-backdrop { align-items: flex-start; padding: 12px; }.qr-modal { padding: 15px; }.qr-modal-actions { flex-wrap: wrap; }.qr-modal-actions .button { flex: 1; }
   .history-row { align-items: flex-start; gap: 10px; }.history-row b { white-space: nowrap; }
 }
