@@ -37,3 +37,15 @@ public record UpdateMenuItemRequest(
     bool IsAvailable,
     [Range(0, 1440)] int PreparationMinutes,
     [Range(0, 1000000)] int StockQuantity = 100);
+
+public record CreateMenuItemOptionRequest(
+    [Required, StringLength(100)] string Name,
+    [Range(typeof(decimal), "0", "1000000")] decimal AdditionalPrice,
+    [Range(0, 10000)] int DisplayOrder,
+    bool IsActive = true);
+
+public record UpdateMenuItemOptionRequest(
+    [Required, StringLength(100)] string Name,
+    [Range(typeof(decimal), "0", "1000000")] decimal AdditionalPrice,
+    [Range(0, 10000)] int DisplayOrder,
+    bool IsActive);

@@ -127,7 +127,12 @@ public class CustomerController : ControllerBase
                 favorite.MenuItem.Options
                     .Where(option => option.IsActive)
                     .OrderBy(option => option.DisplayOrder)
-                    .Select(option => new MenuItemOptionDto(option.Id, option.Name, option.AdditionalPrice))
+                    .Select(option => new MenuItemOptionDto(
+                        option.Id,
+                        option.Name,
+                        option.AdditionalPrice,
+                        option.IsActive,
+                        option.DisplayOrder))
                     .ToList(),
                 favorite.MenuItem.StockQuantity))
             .ToListAsync();

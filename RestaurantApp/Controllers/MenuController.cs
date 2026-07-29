@@ -45,7 +45,9 @@ public class MenuController : ControllerBase
                             .Select(option => new MenuItemOptionDto(
                                 option.Id,
                                 option.Name,
-                                option.AdditionalPrice))
+                                option.AdditionalPrice,
+                                option.IsActive,
+                                option.DisplayOrder))
                             .ToList(),
                         item.StockQuantity))
                     .ToList()))

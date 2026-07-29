@@ -180,6 +180,33 @@ public sealed class ApiIntegrationTests : IClassFixture<RestaurantAppFactory>, I
     }
 
     [Fact]
+    public async Task AdminCanManageMenuItemOptions_AndInactiveOptionsAreHiddenFromCustomers()
+    {
+        using var admin = await CreateAuthenticatedClientAsync("admin-test");
+        var createResponse = await admin.PostAsJsonAsync(
+            "/api/admin/menu-items/5/options",
+            new CreateMenuItemOptionRequest("Büyük ayran", 20m, 2, true),
+            JsonOptions);
+        Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+        var option = await createResponse.Content.ReadFromJsonAsync<MenuItemOptionDto>(JsonOptions);
+        Assert.NotNull(option);
+
+        using var anonymous = _factory.CreateClient();
+        var categories = await anonymous.GetFromJsonAsync<List<MenuCategoryDto>>("/api/menu", JsonOptions);
+        var ayran = categories!.SelectMany(category => category.Items).Single(item => item.Id == 5);
+        Assert.Contains(ayran.Options!, item => item.Id == option!.Id && item.Name == "Büyük ayran");
+
+        Assert.Equal(HttpStatusCode.NoContent, (await admin.PutAsJsonAsync(
+            $"/api/admin/menu-item-options/{option!.Id}",
+            new UpdateMenuItemOptionRequest("Büyük ayran", 25m, 2, false),
+            JsonOptions)).StatusCode);
+
+        categories = await anonymous.GetFromJsonAsync<List<MenuCategoryDto>>("/api/menu", JsonOptions);
+        ayran = categories!.SelectMany(category => category.Items).Single(item => item.Id == 5);
+        Assert.DoesNotContain(ayran.Options!, item => item.Id == option.Id);
+    }
+
+    [Fact]
     public async Task MenuUpdate_IsVisibleInAdminAuditEndpoint()
     {
         using var admin = await CreateAuthenticatedClientAsync("admin-test");

@@ -214,6 +214,19 @@ export function KitchenScreen({ apiBaseUrl, username, onLogout }: KitchenScreenP
     }
   }
 
+  function handleInventoryAction(item: InventoryItemDto, action: InventoryAction) {
+    const request = action === "add-one"
+      ? () => adjustInventory(apiBaseUrl, item.id, 1)
+      : action === "add-five"
+        ? () => adjustInventory(apiBaseUrl, item.id, 5)
+        : item.isAvailable
+          ? () => setInventoryStock(apiBaseUrl, item.id, 0)
+          : item.stockQuantity > 0
+            ? () => setInventoryAvailability(apiBaseUrl, item.id, true)
+            : () => adjustInventory(apiBaseUrl, item.id, 1);
+    void runStockAction(item.id, request);
+  }
+
   async function changeItemStatus(itemId: number, status: OrderItemStatus) {
     setUpdatingItemId(itemId);
     try {
@@ -316,7 +329,7 @@ export function KitchenScreen({ apiBaseUrl, username, onLogout }: KitchenScreenP
           </View>
         ) : null}
 
-        <View style={styles.inventoryPanel}>
+        {false ? <View style={styles.inventoryPanel}>
           <View style={styles.inventoryHeader}>
             <View style={styles.flex}>
               <Text style={styles.inventoryTitle}>Hızlı stok yönetimi</Text>
@@ -388,7 +401,7 @@ export function KitchenScreen({ apiBaseUrl, username, onLogout }: KitchenScreenP
               </View>
             );
           })}
-        </View>
+        </View> : null}
 
         {waiterCalls.length > 0 ? (
           <View style={styles.waiterCallsPanel}>
@@ -495,6 +508,13 @@ export function KitchenScreen({ apiBaseUrl, username, onLogout }: KitchenScreenP
           </View>
           );
         })}
+
+        <InventoryManagementPanel
+          inventory={inventory}
+          lowStockCount={lowStockCount}
+          updatingStockId={updatingStockId}
+          onAction={handleInventoryAction}
+        />
       </ScrollView>
 
       <Modal
@@ -542,6 +562,52 @@ export function KitchenScreen({ apiBaseUrl, username, onLogout }: KitchenScreenP
 
 function Stat({ label, value }: { label: string; value: number }) {
   return <View style={styles.stat}><Text style={styles.statValue}>{value}</Text><Text style={styles.statLabel}>{label}</Text></View>;
+}
+
+type InventoryAction = "add-one" | "add-five" | "toggle-availability";
+
+function InventoryManagementPanel({
+  inventory,
+  lowStockCount,
+  updatingStockId,
+  onAction
+}: {
+  inventory: InventoryItemDto[];
+  lowStockCount: number;
+  updatingStockId: number | null;
+  onAction: (item: InventoryItemDto, action: InventoryAction) => void;
+}) {
+  return (
+    <View style={styles.inventoryPanel}>
+      <View style={styles.inventoryHeader}>
+        <View style={styles.flex}>
+          <Text style={styles.inventoryTitle}>Hızlı stok yönetimi</Text>
+          <Text style={styles.inventoryHint}>
+            {lowStockCount > 0 ? `${lowStockCount} ürün için stok uyarısı var.` : "Stok seviyeleri normal."}
+          </Text>
+        </View>
+        {lowStockCount > 0 ? <View style={styles.inventoryWarningBadge}><Text style={styles.inventoryWarningBadgeText}>{lowStockCount}</Text></View> : null}
+      </View>
+      {inventory.map((item) => {
+        const isUpdatingStock = updatingStockId === item.id;
+        const isCriticalStock = item.stockQuantity <= 5;
+        const isLowStock = item.stockQuantity > 5 && item.stockQuantity <= 10;
+        return (
+          <View key={item.id} style={[styles.inventoryRow, isLowStock ? styles.inventoryRowLow : null, isCriticalStock ? styles.inventoryRowCritical : null]}>
+            <View style={styles.flex}>
+              <Text style={styles.inventoryItemName}>{item.name}</Text>
+              <Text style={styles.inventoryItemMeta}>{item.categoryName} · Stok: {item.stockQuantity} · {item.isAvailable ? "Satışta" : "Satışta değil"}</Text>
+            </View>
+            <View style={styles.inventoryActions}>
+              <Pressable disabled={isUpdatingStock} onPress={() => onAction(item, "add-one")} style={[styles.inventoryActionButton, isUpdatingStock ? styles.disabled : null]}><Text style={styles.inventoryActionText}>+1</Text></Pressable>
+              <Pressable disabled={isUpdatingStock} onPress={() => onAction(item, "add-five")} style={[styles.inventoryActionButton, isUpdatingStock ? styles.disabled : null]}><Text style={styles.inventoryActionText}>+5</Text></Pressable>
+              <Pressable disabled={isUpdatingStock} onPress={() => onAction(item, "toggle-availability")} style={[styles.inventoryAvailabilityButton, !item.isAvailable ? styles.inventoryOpenButton : null, isUpdatingStock ? styles.disabled : null]}><Text style={styles.inventoryAvailabilityText}>{isUpdatingStock ? "…" : item.isAvailable ? "Tükendi" : "Satışa aç"}</Text></Pressable>
+            </View>
+          </View>
+        );
+      })}
+    </View>
+  );
 }
 
 function OrderItemRow({

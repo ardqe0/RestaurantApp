@@ -21,4 +21,6 @@ public record MenuItemDto(
 public record MenuItemOptionDto(
     int Id,
     string Name,
-    decimal AdditionalPrice);
+    decimal AdditionalPrice,
+    bool IsActive = true,
+    int DisplayOrder = 0);

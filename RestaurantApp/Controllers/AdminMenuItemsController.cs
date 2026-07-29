@@ -45,7 +45,16 @@ public class AdminMenuItemsController : ControllerBase
                 item.ImageUrl,
                 item.IsAvailable,
                 item.PreparationMinutes,
-                null,
+                item.Options
+                    .OrderBy(option => option.DisplayOrder)
+                    .ThenBy(option => option.Name)
+                    .Select(option => new MenuItemOptionDto(
+                        option.Id,
+                        option.Name,
+                        option.AdditionalPrice,
+                        option.IsActive,
+                        option.DisplayOrder))
+                    .ToList(),
                 item.StockQuantity))
             .ToListAsync();
 
@@ -138,7 +147,16 @@ public class AdminMenuItemsController : ControllerBase
             menuItem.ImageUrl,
             menuItem.IsAvailable,
             menuItem.PreparationMinutes,
-            null,
+            menuItem.Options
+                .OrderBy(option => option.DisplayOrder)
+                .ThenBy(option => option.Name)
+                .Select(option => new MenuItemOptionDto(
+                    option.Id,
+                    option.Name,
+                    option.AdditionalPrice,
+                    option.IsActive,
+                    option.DisplayOrder))
+                .ToList(),
             menuItem.StockQuantity);
     }
 

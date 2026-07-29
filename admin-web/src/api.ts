@@ -8,6 +8,7 @@ import type {
   DashboardData,
   DashboardSummary,
   MenuItem,
+  MenuItemOption,
   Order,
   OrderStatus,
   RestaurantTable,
@@ -134,6 +135,18 @@ export const updateMenuItem = (id: number, payload: MenuItemPayload) =>
   request<void>(`/api/admin/menu-items/${id}`, { method: "PUT", body: JSON.stringify(payload) });
 export const deleteMenuItem = (id: number) =>
   request<void>(`/api/admin/menu-items/${id}`, { method: "DELETE" });
+
+export type MenuItemOptionPayload = Omit<MenuItemOption, "id">;
+export const createMenuItemOption = (menuItemId: number, payload: MenuItemOptionPayload) =>
+  request<MenuItemOption>(`/api/admin/menu-items/${menuItemId}/options`, {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+export const updateMenuItemOption = (id: number, payload: MenuItemOptionPayload) =>
+  request<void>(`/api/admin/menu-item-options/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(payload)
+  });
 
 export interface TablePayload {
   number: number;
